@@ -38,6 +38,8 @@ void feature_language_features::register_methods(std::map<std::string, method>& 
         std::bind(&feature_language_features::completion, this, std::placeholders::_1, std::placeholders::_2));
     methods.emplace("textDocument/semanticTokens/full",
         std::bind(&feature_language_features::semantic_tokens, this, std::placeholders::_1, std::placeholders::_2));
+    methods.emplace("textDocument/documentSymbol",
+        std::bind(&feature_language_features::document_symbol, this, std::placeholders::_1, std::placeholders::_2));
 }
 
 json feature_language_features::register_capabilities()
@@ -70,7 +72,8 @@ json feature_language_features::register_capabilities()
                             "regexp", //        self_def_type      = 15
                             "parameter" } }, // ordinary_symbol    = 16
                       { "tokenModifiers", json::array() } } },
-                { "full", true } } } };
+                 { "full", true } } }, 
+        { "documentSymbolProvider", true }};
 }
 
 void feature_language_features::initialize_feature(const json&)
@@ -250,6 +253,33 @@ void feature_language_features::semantic_tokens(const json& id, const json& para
     json num_array = convert_tokens_to_num_array(tokens);
 
     response_->respond(id, "", { { "data", num_array } });
+}
+
+json feature_language_features::get_document_symbol_item_json(hlasm_plugin::parser_library::document_symbol_item symbol)
+{
+    return {{"name", symbol.get_name()},
+        {"kind", symbol.get_kind()},
+        {"range", range_to_json(symbol.get_range())},
+        {"selectionRange", range_to_json(symbol.get_selection_range())}};
+}
+
+json feature_language_features::get_document_symbol_list_json(hlasm_plugin::parser_library::document_symbol_list symbol_list)
+{
+    json result = json::array();
+    for (size_t i = 0; i < symbol_list.size(); i++)
+    {
+        result.push_back(get_document_symbol_item_json(symbol_list.item(i)));
+    }
+    return result;
+}
+
+void feature_language_features::document_symbol(const json& id, const json& params)
+{
+    auto document_uri = params["textDocument"]["uri"].get<std::string>();
+    
+    auto aux_view = ws_mngr_.document_symbol(uri_to_path(document_uri).c_str());
+
+    response_->respond(id, "", get_document_symbol_list_json(aux_view));
 }
 
 

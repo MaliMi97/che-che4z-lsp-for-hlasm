@@ -41,6 +41,15 @@ completion_item c_view_array<completion_item, lsp::completion_item_s>::item(size
     return data_[index];
 }
 
+//********************** document symbol item **********************
+
+template<>
+document_symbol_item c_view_array<document_symbol_item, document_symbol_item_s>::item(size_t index)
+{
+    return data_[index];
+}
+
+
 //********************** location **********************
 
 position_uri::position_uri(const location& item)

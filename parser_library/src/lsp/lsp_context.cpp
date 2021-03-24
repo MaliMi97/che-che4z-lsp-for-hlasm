@@ -565,4 +565,20 @@ hover_result lsp_context::hover(const context::opcode_t& sym) const
     }
 }
 
+document_symbol_list_s lsp_context::document_symbol(const std::string& document_uri) const
+{
+    position start(0,1);
+    position end(0,1);
+    std::string name = "L";
+    document_symbol_kind kind = document_symbol_kind::dummy;
+    document_symbol_item_s aux(
+        name, 
+        kind, 
+        range(start,end), 
+        range(start,end));
+    document_symbol_list_s aux_list;
+    aux_list.push_back(aux);
+    return aux_list;
+}
+
 } // namespace hlasm_plugin::parser_library::lsp
