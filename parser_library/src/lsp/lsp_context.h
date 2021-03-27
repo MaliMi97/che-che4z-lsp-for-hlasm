@@ -15,11 +15,11 @@
 #ifndef LSP_CONTEXT_H
 #define LSP_CONTEXT_H
 
+#include "completion_item.h"
 #include "feature_provider.h"
 #include "file_info.h"
-#include "opencode_info.h"
-#include "completion_item.h"
 #include "location.h"
+#include "opencode_info.h"
 
 namespace hlasm_plugin::parser_library::lsp {
 
@@ -61,9 +61,9 @@ private:
     std::string hover(const variable_symbol_definition& sym) const;
     std::string hover(const context::opcode_t& sym) const;
 
-    completion_list_s complete_var(const file_info_ptr& file, position pos) const;
-    completion_list_s complete_seq(const file_info_ptr& file, position pos) const;
-    completion_list_s complete_instr(const file_info_ptr& file, position pos) const;
+    completion_list_s complete_var(const file_info& file, position pos) const;
+    completion_list_s complete_seq(const file_info& file, position pos) const;
+    completion_list_s complete_instr(const file_info& file, position pos) const;
 
     std::string get_macro_documentation(const macro_info& m) const;
 };

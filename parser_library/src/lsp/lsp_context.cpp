@@ -38,10 +38,7 @@ void lsp_context::add_copy(context::copy_member_ptr copy, text_data_ref_t text_d
 void lsp_context::add_macro(macro_info_ptr macro_i, text_data_ref_t text_data)
 {
     if (macro_i->external)
-    {
-        assert(text_data.text != "");
         add_file(file_info(macro_i->macro_definition, std::move(text_data)));
-    }
 
     macros_[macro_i->macro_definition] = macro_i;
 }
@@ -65,9 +62,7 @@ location lsp_context::definition(const std::string& document_uri, const position
     if (!occ)
         return { pos, document_uri };
 
-    auto def = find_definition_location(*occ, macro_scope);
-
-    if (def)
+    if (auto def = find_definition_location(*occ, macro_scope))
         return { def->pos, def->file };
     return { pos, document_uri };
 }
@@ -78,7 +73,7 @@ void collect_references(location_list& refs, const symbol_occurence& occ, const 
     {
         auto file_refs = file_info::find_references(occ, occs);
         for (auto&& ref : file_refs)
-            refs.push_back({ std::move(ref), file });
+            refs.emplace_back(std::move(ref), file);
     }
 }
 
@@ -91,8 +86,6 @@ location_list lsp_context::references(const std::string& document_uri, const pos
     if (!occ)
         return {};
 
-    std::vector<location> scoped_result;
-    
     if (occ->is_scoped())
     {
         if (macro_scope)
@@ -112,25 +105,29 @@ location_list lsp_context::references(const std::string& document_uri, const pos
 
 hover_result lsp_context::hover(const std::string& document_uri, const position pos) const
 {
-    std::string result;
     auto [occ, macro_scope] = find_occurence_with_scope(document_uri, pos);
 
     if (!occ)
-        return result;
+        return {};
 
     return find_hover(*occ, macro_scope);
 }
 
 size_t constexpr continuation_column = 71;
 
+bool is_continued_line(std::string_view line)
+{
+    return line.size() > continuation_column && !isspace(line[continuation_column]);
+}
+
 bool should_complete_instr(const text_data_ref_t& text, const position pos)
 {
-    std::string_view line_before = text.get_line(pos.line - 1);
+    bool line_before_continued = pos.line > 0 ? is_continued_line(text.get_line(pos.line - 1)) : false;
+
     std::string_view line_so_far = text.get_line_beginning(pos);
 
     static const std::regex instruction_regex("^([^*][^*]\\S*\\s+\\S+|\\s+\\S*)");
-    return (line_before.size() <= continuation_column || std::isspace(line_before[continuation_column]))
-        && std::regex_match(line_so_far.begin(), line_so_far.end(), instruction_regex);
+    return !line_before_continued && std::regex_match(line_so_far.begin(), line_so_far.end(), instruction_regex);
 }
 
 completion_list_s lsp_context::completion(const std::string& document_uri,
@@ -147,44 +144,41 @@ completion_list_s lsp_context::completion(const std::string& document_uri,
         (trigger_kind == completion_trigger_kind::trigger_character) ? trigger_char : text.get_character_before(pos);
 
     if (last_char == '&')
-        return complete_var(file_it->second, pos);
+        return complete_var(*file_it->second, pos);
     else if (last_char == '.')
-        return complete_seq(file_it->second, pos);
+        return complete_seq(*file_it->second, pos);
     else if (should_complete_instr(text, pos))
-        return complete_instr(file_it->second, pos);
+        return complete_instr(*file_it->second, pos);
 
     return completion_list_s();
 }
 
-completion_list_s lsp_context::complete_var(const file_info_ptr& file, position pos) const
+completion_list_s lsp_context::complete_var(const file_info& file, position pos) const
 {
-    auto scope = file->find_scope(pos);
+    auto scope = file.find_scope(pos);
 
 
     completion_list_s items;
     const vardef_storage& var_defs = scope ? scope->var_definitions : opencode_->variable_definitions;
     for (const auto& vardef : var_defs)
     {
-        auto cont = hover(vardef);
-        completion_item_s item(
-            "&" + *vardef.name, std::move(cont), "&" + *vardef.name, "", completion_item_kind::var_sym);
-        items.push_back(std::move(item));
+        items.emplace_back("&" + *vardef.name, hover(vardef), "&" + *vardef.name, "", completion_item_kind::var_sym);
     }
 
     return items;
 }
 
-completion_list_s lsp_context::complete_seq(const file_info_ptr& file, position pos) const
+completion_list_s lsp_context::complete_seq(const file_info& file, position pos) const
 {
-    auto macro_i = file->find_scope(pos);
+    auto macro_i = file.find_scope(pos);
 
     const context::label_storage& seq_syms =
         macro_i ? macro_i->macro_definition->labels : opencode_->hlasm_ctx.current_scope().sequence_symbols;
 
     completion_list_s items;
-    for (const auto& sym : seq_syms)
+    for (const auto& [_, sym] : seq_syms)
     {
-        std::string label = "." + *sym.second->name;
+        std::string label = "." + *sym->name;
         items.emplace_back(label, "Sequence symbol", label, "", completion_item_kind::seq_sym);
     }
     return items;
@@ -223,15 +217,7 @@ std::string get_macro_signature(const context::macro_definition& m)
 }
 
 
-bool is_comment(std::string_view line)
-{
-    return line.size() > 0 && (line[0] == '*' || (line.size() > 1 && line.substr(0, 2) == ".*"));
-}
-
-bool is_continued_line(std::string_view line)
-{
-    return line.size() > continuation_column && !isspace(line[continuation_column]);
-}
+bool is_comment(std::string_view line) { return line.substr(0, 1) == "*" || line.substr(0, 2) == ".*"; }
 
 
 std::string lsp_context::get_macro_documentation(const macro_info& m) const
@@ -255,7 +241,7 @@ std::string lsp_context::get_macro_documentation(const macro_info& m) const
 
     // Find the end line of macro definition
     size_t macro_def_end_line = m.definition_location.pos.line;
-    while (macro_def_end_line < text.line_indices.size() && is_continued_line(text.get_line(macro_def_end_line)))
+    while (macro_def_end_line < text.get_number_of_lines() && is_continued_line(text.get_line(macro_def_end_line)))
         ++macro_def_end_line;
     ++macro_def_end_line;
 
@@ -265,7 +251,7 @@ std::string lsp_context::get_macro_documentation(const macro_info& m) const
     // Find the end line of documentation that comes after the macro definition
     size_t doc_after_end_line = macro_def_end_line;
 
-    while (doc_after_end_line < text.line_indices.size() && is_comment(text.get_line(doc_after_end_line)))
+    while (doc_after_end_line < text.get_number_of_lines() && is_comment(text.get_line(doc_after_end_line)))
         ++doc_after_end_line;
 
     std::string_view doc_after = text.get_range_content({ { macro_def_end_line, 0 }, { doc_after_end_line, 0 } });
@@ -279,19 +265,16 @@ std::string lsp_context::get_macro_documentation(const macro_info& m) const
     return result;
 }
 
-completion_list_s lsp_context::complete_instr(const file_info_ptr&, position) const
+completion_list_s lsp_context::complete_instr(const file_info&, position) const
 {
     completion_list_s result = completion_item_s::instruction_completion_items_;
 
-    for (const auto& macro_i : macros_)
+    for (const auto& [_, macro_i] : macros_)
     {
-        const context::macro_definition& m = *macro_i.second->macro_definition;
+        const context::macro_definition& m = *macro_i->macro_definition;
 
-        result.emplace_back(*m.id,
-            get_macro_signature(m),
-            *m.id,
-            get_macro_documentation(*macro_i.second),
-            completion_item_kind::macro);
+        result.emplace_back(
+            *m.id, get_macro_signature(m), *m.id, get_macro_documentation(*macro_i), completion_item_kind::macro);
     }
 
     return result;
@@ -469,7 +452,7 @@ hover_result lsp_context::find_hover(const symbol_occurence& occ, macro_info_ptr
         }
         case lsp::occurence_kind::SEQ:
             return "Sequence symbol";
-        
+
         case lsp::occurence_kind::VAR: {
             auto sym = find_definition<lsp::occurence_kind::VAR>(occ, macro_i, *opencode_, files_);
             if (sym)
@@ -484,7 +467,7 @@ hover_result lsp_context::find_hover(const symbol_occurence& occ, macro_info_ptr
         }
         case lsp::occurence_kind::COPY_OP:
             return "";
-        
+
         default:
             break;
     }
@@ -569,7 +552,7 @@ document_symbol_list_s lsp_context::document_symbol(const std::string& document_
 {
     position start(0,1);
     position end(0,1);
-    std::string name = "L";
+    std::string name = "M";
     document_symbol_kind kind = document_symbol_kind::dummy;
     document_symbol_item_s aux(
         name, 

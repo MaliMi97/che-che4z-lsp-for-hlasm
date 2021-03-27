@@ -332,33 +332,26 @@ macrodef_processor::process_table_t macrodef_processor::create_table()
 {
     process_table_t table;
     table.emplace(hlasm_ctx.ids().add("SETA"),
-        std::bind(&macrodef_processor::process_SET, this, std::placeholders::_1, context::SET_t_enum::A_TYPE));
+        [this](const resolved_statement& stmt) { process_SET(stmt, context::SET_t_enum::A_TYPE); });
     table.emplace(hlasm_ctx.ids().add("SETB"),
-        std::bind(&macrodef_processor::process_SET, this, std::placeholders::_1, context::SET_t_enum::B_TYPE));
+        [this](const resolved_statement& stmt) { process_SET(stmt, context::SET_t_enum::B_TYPE); });
     table.emplace(hlasm_ctx.ids().add("SETC"),
-        std::bind(&macrodef_processor::process_SET, this, std::placeholders::_1, context::SET_t_enum::C_TYPE));
+        [this](const resolved_statement& stmt) { process_SET(stmt, context::SET_t_enum::C_TYPE); });
     table.emplace(hlasm_ctx.ids().add("LCLA"),
-        std::bind(
-            &macrodef_processor::process_LCL_GBL, this, std::placeholders::_1, context::SET_t_enum::A_TYPE, false));
+        [this](const resolved_statement& stmt) { process_LCL_GBL(stmt, context::SET_t_enum::A_TYPE, false); });
     table.emplace(hlasm_ctx.ids().add("LCLB"),
-        std::bind(
-            &macrodef_processor::process_LCL_GBL, this, std::placeholders::_1, context::SET_t_enum::B_TYPE, false));
+        [this](const resolved_statement& stmt) { process_LCL_GBL(stmt, context::SET_t_enum::B_TYPE, false); });
     table.emplace(hlasm_ctx.ids().add("LCLC"),
-        std::bind(
-            &macrodef_processor::process_LCL_GBL, this, std::placeholders::_1, context::SET_t_enum::C_TYPE, false));
+        [this](const resolved_statement& stmt) { process_LCL_GBL(stmt, context::SET_t_enum::C_TYPE, false); });
     table.emplace(hlasm_ctx.ids().add("GBLA"),
-        std::bind(
-            &macrodef_processor::process_LCL_GBL, this, std::placeholders::_1, context::SET_t_enum::A_TYPE, true));
+        [this](const resolved_statement& stmt) { process_LCL_GBL(stmt, context::SET_t_enum::A_TYPE, true); });
     table.emplace(hlasm_ctx.ids().add("GBLB"),
-        std::bind(
-            &macrodef_processor::process_LCL_GBL, this, std::placeholders::_1, context::SET_t_enum::B_TYPE, true));
+        [this](const resolved_statement& stmt) { process_LCL_GBL(stmt, context::SET_t_enum::B_TYPE, true); });
     table.emplace(hlasm_ctx.ids().add("GBLC"),
-        std::bind(
-            &macrodef_processor::process_LCL_GBL, this, std::placeholders::_1, context::SET_t_enum::C_TYPE, true));
-    table.emplace(hlasm_ctx.ids().add("MACRO"), std::bind(&macrodef_processor::process_MACRO, this));
-    table.emplace(hlasm_ctx.ids().add("MEND"), std::bind(&macrodef_processor::process_MEND, this));
-    table.emplace(
-        hlasm_ctx.ids().add("COPY"), std::bind(&macrodef_processor::process_COPY, this, std::placeholders::_1));
+        [this](const resolved_statement& stmt) { process_LCL_GBL(stmt, context::SET_t_enum::C_TYPE, true); });
+    table.emplace(hlasm_ctx.ids().add("MACRO"), [this](const resolved_statement&) { process_MACRO(); });
+    table.emplace(hlasm_ctx.ids().add("MEND"), [this](const resolved_statement&) { process_MEND(); });
+    table.emplace(hlasm_ctx.ids().add("COPY"), [this](const resolved_statement& stmt) { process_COPY(stmt); });
     return table;
 }
 
@@ -432,6 +425,8 @@ void macrodef_processor::process_SET(const resolved_statement& statement, contex
 void macrodef_processor::add_SET_sym_to_res(
     const semantics::variable_symbol* var, context::SET_t_enum set_type, bool global)
 {
+    if (macro_nest_ > 1)
+        return;
     if (var->created)
         return;
 
@@ -457,10 +452,11 @@ void macrodef_processor::process_sequence_symbol(const semantics::label_si& labe
         }
         else
         {
-            result_.sequence_symbols.emplace(seq.name,
-                std::make_unique<context::macro_sequence_symbol>(seq.name,
+            auto& sym = result_.sequence_symbols[seq.name];
+            if (!sym)
+                sym = std::make_unique<context::macro_sequence_symbol>(seq.name,
                     location(label.field_range.start, hlasm_ctx.current_statement_location().file),
-                    curr_line_));
+                    curr_line_);
         }
     }
 }
@@ -480,6 +476,7 @@ void macrodef_processor::add_correct_copy_nest()
     const auto& current_file = result_.nests.back().back().file;
     bool in_inner_macro = macro_nest_ > 1;
 
+
     if (result_.file_scopes[current_file].empty())
     {
         if (curr_line_ == 1)
@@ -489,11 +486,20 @@ void macrodef_processor::add_correct_copy_nest()
     }
     else
     {
-        auto& last_scope = result_.file_scopes[current_file].back();
-        last_scope.end_statement = curr_line_;
-        if (last_scope.inner_macro != in_inner_macro) // add new scope
+        bool inner_macro_ended = last_in_inner_macro_ && !in_inner_macro;
+        bool inner_macro_started = !last_in_inner_macro_ && in_inner_macro;
+        if (inner_macro_ended) // add new scope when inner macro ended
             result_.file_scopes[current_file].emplace_back(curr_line_, in_inner_macro);
+        else if (!in_inner_macro
+            || inner_macro_started) // if we are not in inner macro update the end of old scope. Update also when inner
+                                    // macro just started, since we use half-open intervals.
+        {
+            auto& last_scope = result_.file_scopes[current_file].back();
+            last_scope.end_statement = curr_line_;
+        }
     }
+
+    last_in_inner_macro_ = in_inner_macro;
 }
 
 } // namespace hlasm_plugin::parser_library::processing

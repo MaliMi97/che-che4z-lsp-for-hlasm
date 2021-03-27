@@ -24,10 +24,10 @@ namespace hlasm_plugin::parser_library {
 
 struct location
 {
-    location() {}
+    location() = default;
     location(position pos, std::string file)
         : pos(pos)
-        , file(file)
+        , file(std::move(file))
     {}
     bool operator==(const location& oth) const { return pos == oth.pos && file == oth.file; }
     position pos;

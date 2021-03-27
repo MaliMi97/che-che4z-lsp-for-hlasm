@@ -738,10 +738,9 @@ const std::set<std::string>& hlasm_context::get_visited_files() { return visited
 copy_member_ptr hlasm_context::add_copy_member(
     id_index member, statement_block definition, location definition_location)
 {
-    auto copydef =
-        copy_members_
-            .try_emplace(member, std::make_shared<copy_member>(member, std::move(definition), definition_location))
-            .first->second;
+    auto& copydef = copy_members_[member];
+    if (!copydef)
+        copydef = std::make_shared<copy_member>(member, std::move(definition), definition_location);
     visited_files_.insert(std::move(definition_location.file));
 
     return copydef;
@@ -753,7 +752,7 @@ void hlasm_context::enter_copy_member(id_index member_name)
     if (tmp == copy_members_.end())
         throw std::runtime_error("unknown copy member");
 
-    auto& [name, member] = *tmp;
+    const auto& [name, member] = *tmp;
 
     source_stack_.back().copy_stack.emplace_back(member->enter());
 }

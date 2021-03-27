@@ -22,6 +22,9 @@ namespace hlasm_plugin::parser_library::semantics {
 // base class for a visitor pattern over operand structures
 class operand_visitor
 {
+protected:
+    virtual ~operand_visitor() = default;
+
 public:
     virtual void visit(const empty_operand& op) = 0;
     virtual void visit(const model_operand& op) = 0;

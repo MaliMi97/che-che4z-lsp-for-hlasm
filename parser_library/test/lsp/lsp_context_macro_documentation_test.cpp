@@ -14,7 +14,6 @@
 
 #include "gtest/gtest.h"
 
-#include "../compare_unordered_vectors.h"
 #include "analyzer_fixture.h"
 
 
@@ -45,6 +44,7 @@ struct lsp_context_macro_documentation : public analyzer_fixture
 * Before macro line 2
 * After macro line 1
 .* After macro line 2
+
 ```
 )";
 

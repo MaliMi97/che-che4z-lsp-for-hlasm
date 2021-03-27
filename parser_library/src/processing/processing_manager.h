@@ -31,14 +31,14 @@ namespace hlasm_plugin::parser_library::processing {
 // is constructed with base statement provider and has stack of statement processors which take statements from
 // providers and go through the code creating other providers and processors it holds those providers and processors and
 // manages the whole processing
-class processing_manager : public processing_state_listener, public branching_provider, public diagnosable_ctx
+class processing_manager final : public processing_state_listener, public branching_provider, public diagnosable_ctx
 {
 public:
     processing_manager(std::unique_ptr<opencode_provider> base_provider,
         analyzing_context ctx,
         const workspaces::library_data data,
         std::string file_name,
-        const std::string & file_text,
+        const std::string& file_text,
         workspaces::parse_lib_provider& lib_provider,
         statement_fields_parser& parser);
 
@@ -57,7 +57,7 @@ private:
 
     std::vector<processor_ptr> procs_;
     std::vector<provider_ptr> provs_;
-    
+
     lsp_analyzer lsp_analyzer_;
     std::vector<statement_analyzer*> stms_analyzers_;
 

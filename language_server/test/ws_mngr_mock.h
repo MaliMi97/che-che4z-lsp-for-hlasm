@@ -29,6 +29,7 @@ public:
     MOCK_METHOD2(get_workspaces, size_t(ws_id* workspaces, size_t max_size));
     MOCK_METHOD0(get_workspaces_count, size_t());
     MOCK_METHOD2(add_workspace, void(const char* name, const char* uri));
+    MOCK_METHOD1(find_workspace, ws_id(const char* document_uri));
     MOCK_METHOD1(remove_workspace, void(const char* uri));
 
     MOCK_METHOD4(
@@ -39,15 +40,12 @@ public:
 
     MOCK_METHOD1(configuration_changed, void(const lib_config& new_config));
 
-    MOCK_METHOD(position_uri, definition, (const std::string& document_uri, const position pos), (override));
-    MOCK_METHOD(position_uri_list, references, (const std::string& document_uri, const position pos), (override));
-    MOCK_METHOD(std::string_view, hover, (const std::string& document_uri, const position pos), (override));
+    MOCK_METHOD(position_uri, definition, (const char* document_uri, const position pos), (override));
+    MOCK_METHOD(position_uri_list, references, (const char* document_uri, const position pos), (override));
+    MOCK_METHOD(std::string_view, hover, (const char* document_uri, const position pos), (override));
     MOCK_METHOD(completion_list,
         completion,
-        (const std::string& document_uri,
-            const position pos,
-            const char trigger_char,
-            completion_trigger_kind trigger_kind),
+        (const char* document_uri, const position pos, const char trigger_char, completion_trigger_kind trigger_kind),
         (override));
 };
 

@@ -106,7 +106,8 @@ void feature_language_features::references(const json& id, const json& params)
     for (size_t i = 0; i < references.size(); ++i)
     {
         auto ref = references.item(i);
-        to_ret.push_back(json { { "uri", path_to_uri(ref.file()) }, { "range", range_to_json({ ref.pos(), ref.pos() }) } });
+        to_ret.push_back(
+            json { { "uri", path_to_uri(ref.file()) }, { "range", range_to_json({ ref.pos(), ref.pos() }) } });
     }
     response_->respond(id, "", to_ret);
 }
@@ -116,15 +117,8 @@ void feature_language_features::hover(const json& id, const json& params)
     auto pos =
         parser_library::position(params["position"]["line"].get<int>(), params["position"]["character"].get<int>());
 
-    
-    auto hover_list = ws_mngr_.hover(uri_to_path(document_uri).c_str(), pos);
 
-    
-    /*json hover_arr = json::array();
-    for (size_t i = 0; i < hover_list.size(); i++)
-    {
-        hover_arr.push_back(hover_list[i]);
-    }*/
+    auto hover_list = ws_mngr_.hover(uri_to_path(document_uri).c_str(), pos);
 
     response_->respond(id, "", json { { "contents", hover_list.empty() ? json() : get_markup_content(hover_list) } });
 }
@@ -140,7 +134,7 @@ enum class lsp_completion_item_kind
     variable = 6,
     class_v = 7,
     interface = 8,
-    module = 9,
+    module_v = 9,
     property = 10,
     unit = 11,
     value = 12,
@@ -159,16 +153,16 @@ enum class lsp_completion_item_kind
     type_parameter = 25
 };
 
-std::unordered_map<parser_library::completion_item_kind, lsp_completion_item_kind> completion_item_kind_mapping()
-{
-    using namespace parser_library;
-    return { { completion_item_kind::mach_instr, lsp_completion_item_kind::function },
-        { completion_item_kind::asm_instr, lsp_completion_item_kind::function },
-        { completion_item_kind::ca_instr, lsp_completion_item_kind::function },
-        { completion_item_kind::macro, lsp_completion_item_kind::file },
-        { completion_item_kind::var_sym, lsp_completion_item_kind::variable },
-        { completion_item_kind::seq_sym, lsp_completion_item_kind::reference } };
-}
+
+const std::unordered_map<parser_library::completion_item_kind, lsp_completion_item_kind> completion_item_kind_mapping {
+    { parser_library::completion_item_kind::mach_instr, lsp_completion_item_kind::function },
+    { parser_library::completion_item_kind::asm_instr, lsp_completion_item_kind::function },
+    { parser_library::completion_item_kind::ca_instr, lsp_completion_item_kind::function },
+    { parser_library::completion_item_kind::macro, lsp_completion_item_kind::file },
+    { parser_library::completion_item_kind::var_sym, lsp_completion_item_kind::variable },
+    { parser_library::completion_item_kind::seq_sym, lsp_completion_item_kind::reference }
+};
+
 
 json feature_language_features::get_markup_content(std::string_view content)
 {
@@ -191,14 +185,14 @@ void feature_language_features::completion(const json& id, const json& params)
     if (trigger_kind == parser_library::completion_trigger_kind::trigger_character)
         trigger_char = params["context"]["triggerCharacter"].get<std::string>()[0];
 
-    auto completion_list = ws_mngr_.completion(uri_to_path(document_uri), pos, trigger_char, trigger_kind);
+    auto completion_list = ws_mngr_.completion(uri_to_path(document_uri).c_str(), pos, trigger_char, trigger_kind);
     json to_ret = json::value_t::null;
     json completion_item_array = json::array();
     for (size_t i = 0; i < completion_list.size(); ++i)
     {
         const auto& item = completion_list.item(i);
         completion_item_array.push_back(json { { "label", item.label() },
-            { "kind", completion_item_kind_mapping()[item.kind()] },
+            { "kind", completion_item_kind_mapping.at(item.kind()) },
             { "detail", item.detail() },
             { "documentation", get_markup_content(item.documentation()) },
             { "insertText", item.insert_text() } });

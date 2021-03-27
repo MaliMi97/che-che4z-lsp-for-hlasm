@@ -22,12 +22,15 @@
 
 namespace hlasm_plugin::parser_library::lsp {
 
-struct text_data_ref_t
+class text_data_ref_t
 {
-    const std::string& text;
+    const std::string* text = &empty_text;
     std::vector<size_t> line_indices;
 
-    text_data_ref_t();
+    static std::string empty_text;
+
+public:
+    text_data_ref_t() = default;
     explicit text_data_ref_t(const std::string& text);
 
     // Returns a specified line from the text, zero-based indexed.
@@ -44,8 +47,7 @@ struct text_data_ref_t
     // If the position points to the first character, returns '\0'
     char get_character_before(position pos) const;
 
-private:
-    static std::string empty_text;
+    size_t get_number_of_lines() const;
 };
 
 } // namespace hlasm_plugin::parser_library::lsp

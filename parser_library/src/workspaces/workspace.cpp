@@ -73,7 +73,7 @@ bool workspace::program_id_match(const std::string& filename, const program_id& 
     return std::regex_match(filename, prg_regex);
 }
 
-std::vector<processor_file_ptr> workspace::find_related_opencodes(const std::string document_uri) const
+std::vector<processor_file_ptr> workspace::find_related_opencodes(const std::string& document_uri) const
 {
     std::vector<processor_file_ptr> opencodes;
 
@@ -83,7 +83,7 @@ std::vector<processor_file_ptr> workspace::find_related_opencodes(const std::str
         if (!f)
             continue;
         if (f->dependencies().find(document_uri) != f->dependencies().end())
-            opencodes.push_back(f);
+            opencodes.push_back(std::move(f));
     }
 
     if (opencodes.size())
@@ -592,4 +592,10 @@ const asm_option& workspace::get_asm_options(const std::string& file_name)
 
     return proc_grp.asm_options();
 }
+
+processor_file_ptr workspace::get_processor_file(const std::string& filename)
+{
+    return get_file_manager().get_processor_file(filename);
+}
+
 } // namespace hlasm_plugin::parser_library::workspaces

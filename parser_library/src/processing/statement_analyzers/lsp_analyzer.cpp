@@ -25,12 +25,24 @@ lsp_analyzer::lsp_analyzer(context::hlasm_context& hlasm_ctx, lsp::lsp_context& 
     : hlasm_ctx_(hlasm_ctx)
     , lsp_ctx_(lsp_ctx)
     , file_text_(file_text)
-    , in_macro_(false)
+    , LCL_GBL_instructions_ { { { hlasm_ctx.ids().well_known.LCLA, context::SET_t_enum::A_TYPE, false },
+          { hlasm_ctx.ids().well_known.LCLB, context::SET_t_enum::B_TYPE, false },
+          { hlasm_ctx.ids().well_known.LCLC, context::SET_t_enum::C_TYPE, false },
+          { hlasm_ctx.ids().well_known.GBLA, context::SET_t_enum::A_TYPE, true },
+          { hlasm_ctx.ids().well_known.GBLB, context::SET_t_enum::B_TYPE, true },
+          { hlasm_ctx.ids().well_known.GBLC, context::SET_t_enum::C_TYPE, true } } }
+    , SET_instructions_ { { { hlasm_ctx.ids().well_known.SETA, context::SET_t_enum::A_TYPE },
+          { hlasm_ctx.ids().well_known.SETB, context::SET_t_enum::B_TYPE },
+          { hlasm_ctx.ids().well_known.SETC, context::SET_t_enum::C_TYPE } } }
 {}
 
 void lsp_analyzer::analyze(
     const context::hlasm_statement& statement, statement_provider_kind prov_kind, processing_kind proc_kind)
 {
+    std::string instr;
+    if (statement.access_resolved())
+        instr = *statement.access_resolved()->opcode_ref().value;
+
     switch (proc_kind)
     {
         case processing_kind::ORDINARY:
@@ -45,6 +57,9 @@ void lsp_analyzer::analyze(
             }
             break;
         case processing_kind::MACRO:
+            update_macro_nest(statement);
+            if (macro_nest_ > 1)
+                break; // Do not collect occurences in nested macros to avoid collecting occurences multiple times
             collect_occurences(lsp::occurence_kind::VAR, statement);
             collect_occurences(lsp::occurence_kind::SEQ, statement);
             collect_copy_operands(statement);
@@ -56,7 +71,15 @@ void lsp_analyzer::analyze(
     assign_statement_occurences();
 }
 
-void lsp_analyzer::macrodef_started(const macrodef_start_data&) { in_macro_ = true; }
+void lsp_analyzer::macrodef_started(const macrodef_start_data& data)
+{
+    in_macro_ = true;
+    // For external macros, the macrodef starts before encountering the MACRO statement
+    if (data.is_external)
+        macro_nest_ = 0;
+    else
+        macro_nest_ = 1;
+}
 
 void lsp_analyzer::macrodef_finished(context::macro_def_ptr macrodef, macrodef_processing_result&& result)
 {
@@ -82,8 +105,6 @@ void lsp_analyzer::macrodef_finished(context::macro_def_ptr macrodef, macrodef_p
     in_macro_ = false;
     macro_occurences_.clear();
 }
-
-void lsp_analyzer::copydef_started(const copy_start_data&) {}
 
 void lsp_analyzer::copydef_finished(context::copy_member_ptr copydef, copy_processing_result&&)
 {
@@ -180,33 +201,14 @@ void lsp_analyzer::collect_occurence(const semantics::deferred_operands_si& oper
 
 
 
-bool is_LCL_GBL(const processing::resolved_statement& statement,
-    context::hlasm_context& ctx,
-    context::SET_t_enum& set_type,
-    bool& global)
+bool lsp_analyzer::is_LCL_GBL(
+    const processing::resolved_statement& statement, context::SET_t_enum& set_type, bool& global) const
 {
-    using namespace context;
-
-    struct LCL_GBL_instr
-    {
-        std::string name;
-        SET_t_enum type;
-        bool global;
-    };
-
-    const static LCL_GBL_instr instructions[6] = { { "LCLA", SET_t_enum::A_TYPE, false },
-        { "LCLB", SET_t_enum::B_TYPE, false },
-        { "LCLC", SET_t_enum::C_TYPE, false },
-        { "GBLA", SET_t_enum::A_TYPE, true },
-        { "GBLB", SET_t_enum::B_TYPE, true },
-        { "GBLC", SET_t_enum::C_TYPE, true } };
-
-
     const auto& code = statement.opcode_ref();
 
-    for (const auto& i : instructions)
+    for (const auto& i : LCL_GBL_instructions_)
     {
-        if (code.value == ctx.ids().add(i.name))
+        if (code.value == i.name)
         {
             set_type = i.type;
             global = i.global;
@@ -219,20 +221,15 @@ bool is_LCL_GBL(const processing::resolved_statement& statement,
 
 
 
-bool is_SET(const processing::resolved_statement& statement, context::hlasm_context& ctx, context::SET_t_enum& set_type)
+bool lsp_analyzer::is_SET(const processing::resolved_statement& statement, context::SET_t_enum& set_type) const
 {
-    using namespace context;
     const auto& code = statement.opcode_ref();
 
-    const static std::pair<std::string, SET_t_enum> instructions[3] = {
-        { "SETA", SET_t_enum::A_TYPE }, { "SETB", SET_t_enum::B_TYPE }, { "SETC", SET_t_enum::C_TYPE }
-    };
-
-    for (const auto& i : instructions)
+    for (const auto& [name, type] : SET_instructions_)
     {
-        if (code.value == ctx.ids().add(i.first))
+        if (code.value == name)
         {
-            set_type = i.second;
+            set_type = type;
             return true;
         }
     }
@@ -247,9 +244,9 @@ void lsp_analyzer::collect_var_definition(const context::hlasm_statement& statem
 
     bool global;
     context::SET_t_enum type;
-    if (is_SET(*res_stmt, hlasm_ctx_, type))
+    if (is_SET(*res_stmt, type))
         collect_SET_defs(*res_stmt, type);
-    else if (is_LCL_GBL(*res_stmt, hlasm_ctx_, type, global))
+    else if (is_LCL_GBL(*res_stmt, type, global))
         collect_LCL_GBL_defs(*res_stmt, type, global);
 }
 
@@ -325,6 +322,18 @@ void lsp_analyzer::add_copy_operand(context::id_index name, const range& operand
         ord_sym->kind = lsp::occurence_kind::COPY_OP;
     else
         stmt_occurences_.emplace_back(lsp::occurence_kind::COPY_OP, name, operand_range);
+}
+
+void lsp_analyzer::update_macro_nest(const context::hlasm_statement& statement)
+{
+    auto res_stmt = statement.access_resolved();
+    if (!res_stmt)
+        return;
+
+    if (res_stmt->opcode_ref().value == hlasm_ctx_.ids().well_known.MACRO)
+        macro_nest_++;
+    else if (res_stmt->opcode_ref().value == hlasm_ctx_.ids().well_known.MEND)
+        macro_nest_--;
 }
 
 } // namespace hlasm_plugin::parser_library::processing

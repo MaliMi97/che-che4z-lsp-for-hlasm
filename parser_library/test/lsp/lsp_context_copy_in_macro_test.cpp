@@ -14,7 +14,6 @@
 
 #include "gtest/gtest.h"
 
-#include "../compare_unordered_vectors.h"
 #include "analyzer_fixture.h"
 
 using namespace hlasm_plugin::parser_library;
@@ -70,7 +69,7 @@ SYM    LR &VAR,1
             return true;
         };
 
-        bool has_library(const std::string& library, const std::string& program) const override
+        bool has_library(const std::string& library, const std::string&) const override
         {
             return library == copyfile_file_name || library == macro_file_name;
         };
