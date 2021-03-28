@@ -43,13 +43,20 @@ completion_item sequence<completion_item, const lsp::completion_item_s*>::item(s
 
 //********************** document symbol item **********************
 
+document_symbol_item::document_symbol_item(const lsp::document_symbol_item_s& item)
+    : item_(item)
+{}
+
+std::string document_symbol_item::name() const { return item_.name; }
+document_symbol_kind document_symbol_item::kind() const { return item_.kind; }
+range document_symbol_item::symbol_range() const { return item_.symbol_range; }
+range document_symbol_item::symbol_selection_range() const { return item_.symbol_selection_range; }
+
 template<>
-document_symbol_item c_view_array<document_symbol_item, document_symbol_item_s>::item(size_t index)
+document_symbol_item sequence<document_symbol_item, const lsp::document_symbol_item_s*>::item(size_t index) const
 {
-    return data_[index];
+    return document_symbol_item(stor_[index]);
 }
-
-
 //********************** location **********************
 
 position_uri::position_uri(const location& item)

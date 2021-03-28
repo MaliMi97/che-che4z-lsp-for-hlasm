@@ -124,22 +124,6 @@ const std::vector<token_info>& workspace_manager::semantic_tokens(const char* do
 document_symbol_list workspace_manager::document_symbol(const std::string& document_uri)
 {
     return impl_->document_symbol(document_uri);
-
-    /*
-    // does not work
-    position start(0,1);
-    position end(0,1);
-    std::string name = "I";
-    document_symbol_kind kind = document_symbol_kind::dummy;
-    document_symbol_item_s aux(
-        name, 
-        kind, 
-        range(start,end), 
-        range(start,end));
-    document_symbol_list_s aux_list;
-    aux_list.push_back(aux);
-    return document_symbol_list(aux_list.data(), aux_list.size());
-    */
 }
 
 } // namespace hlasm_plugin::parser_library

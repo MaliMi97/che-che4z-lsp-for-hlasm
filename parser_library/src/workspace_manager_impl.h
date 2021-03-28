@@ -182,7 +182,7 @@ public:
         return completion_list(completion_result.data(), completion_result.size());
     }
 
-    document_symbol_list_s document_symbol_result;
+    lsp::document_symbol_list_s document_symbol_result;
     document_symbol_list document_symbol(const std::string& document_uri)
     {
         if (cancel_ && *cancel_)

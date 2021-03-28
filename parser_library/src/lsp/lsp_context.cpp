@@ -24,6 +24,37 @@
 
 namespace hlasm_plugin::parser_library::lsp {
 
+const std::unordered_map<occurence_kind ,document_symbol_kind> document_symbol_item_kind_mapping {
+    { occurence_kind::ORD, document_symbol_kind::ordinary },
+    { occurence_kind::VAR, document_symbol_kind::variable },
+    { occurence_kind::INSTR, document_symbol_kind::instruction },
+    { occurence_kind::SEQ, document_symbol_kind::sequence },
+    { occurence_kind::COPY_OP, document_symbol_kind::copy_op }
+};
+
+document_symbol_list_s lsp_context::document_symbol(const std::string& document_uri) const
+{
+    document_symbol_list_s result;
+    if (auto file = files_.find(document_uri); file != files_.end())
+    {
+        auto occurences = file->second->document_symbol_filtration();
+        for (symbol_occurence occ : occurences)
+        {
+            if (occ.name != nullptr)
+            {
+                result.push_back(document_symbol_item_s{
+                    *occ.name,
+                    document_symbol_item_kind_mapping.at(occ.kind),
+                    occ.occurence_range,
+                    occ.occurence_range
+                });
+            }
+        }
+    }
+    
+    return result;
+}
+
 void lsp_context::add_file(file_info file_i)
 {
     std::string name = file_i.name;
@@ -546,22 +577,6 @@ hover_result lsp_context::hover(const context::opcode_t& sym) const
             return "";
         return it->detail + "  \n" + it->documentation;
     }
-}
-
-document_symbol_list_s lsp_context::document_symbol(const std::string& document_uri) const
-{
-    position start(0,1);
-    position end(0,1);
-    std::string name = "M";
-    document_symbol_kind kind = document_symbol_kind::dummy;
-    document_symbol_item_s aux(
-        name, 
-        kind, 
-        range(start,end), 
-        range(start,end));
-    document_symbol_list_s aux_list;
-    aux_list.push_back(aux);
-    return aux_list;
 }
 
 } // namespace hlasm_plugin::parser_library::lsp
