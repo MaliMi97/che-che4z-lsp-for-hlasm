@@ -16,6 +16,7 @@
 #define LSP_FEATURE_PROVIDER_H
 
 #include "completion_item.h"
+#include "document_symbol_item.h"
 #include "location.h"
 #include "protocol.h"
 

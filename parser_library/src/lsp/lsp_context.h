@@ -16,6 +16,7 @@
 #define LSP_CONTEXT_H
 
 #include "completion_item.h"
+#include "document_symbol_item.h"
 #include "feature_provider.h"
 #include "file_info.h"
 #include "location.h"

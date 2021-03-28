@@ -28,11 +28,6 @@
 #include "range.h"
 #include "sequence.h"
 
-//---------------------------------
-#include "c_view_array.h"
-#include<vector>
-//---------------------------------
-
 #pragma warning(push)
 #pragma warning(disable : 4661)
 
@@ -80,6 +75,7 @@ struct variable_store;
 
 namespace lsp {
 struct completion_item_s;
+struct document_symbol_item_s;
 }
 
 struct location;
@@ -120,6 +116,30 @@ private:
 template class PARSER_LIBRARY_EXPORT sequence<completion_item, const lsp::completion_item_s*>;
 using completion_list = sequence<completion_item, const lsp::completion_item_s*>;
 
+enum class PARSER_LIBRARY_EXPORT document_symbol_kind
+{
+    ordinary = 0,
+    variable = 1,
+    sequence = 2,
+    instruction = 3,
+    copy_op = 4
+};
+
+struct PARSER_LIBRARY_EXPORT document_symbol_item
+{
+    document_symbol_item(const lsp::document_symbol_item_s& item);
+    std::string name() const;
+    document_symbol_kind kind() const;
+    range symbol_range() const;
+    range symbol_selection_range() const;
+
+private:
+    const lsp::document_symbol_item_s& item_;
+};
+
+template class PARSER_LIBRARY_EXPORT sequence<document_symbol_item, const lsp::document_symbol_item_s*>;
+using document_symbol_list = sequence<document_symbol_item, const lsp::document_symbol_item_s*>;
+
 struct PARSER_LIBRARY_EXPORT position_uri
 {
     explicit position_uri(const location& item);
@@ -129,50 +149,6 @@ struct PARSER_LIBRARY_EXPORT position_uri
 private:
     const location& item_;
 };
-
-//---------------------------------------------------------
-enum class PARSER_LIBRARY_EXPORT document_symbol_kind
-{
-    dummy = 0
-};
-
-struct document_symbol_item_s
-{
-public:
-    document_symbol_item_s(std::string name,
-        document_symbol_kind kind,
-        range symbol_range,
-        range symbol_selection_range)
-        : name(name),
-        kind(kind),
-        symbol_range(symbol_range),
-        symbol_selection_range(symbol_selection_range)
-        {}
-
-    std::string name;
-    document_symbol_kind kind;
-    range symbol_range;
-    range symbol_selection_range;
-};
-using document_symbol_list_s = std::vector<document_symbol_item_s>;
-
-struct PARSER_LIBRARY_EXPORT document_symbol_item
-{
-    document_symbol_item(const document_symbol_item_s& item)
-    : item_(item)
-    {}
-    std::string get_name() { return item_.name;}
-    document_symbol_kind get_kind() { return item_.kind;}
-    range get_range() { return item_.symbol_range;}
-    range get_selection_range() { return item_.symbol_selection_range;}
-
-private:
-    const document_symbol_item_s& item_;
-};
-
-using document_symbol_list = c_view_array<document_symbol_item, document_symbol_item_s>;
-
-//---------------------------------------------------------
 
 template class PARSER_LIBRARY_EXPORT sequence<position_uri, const location*>;
 using position_uri_list = sequence<position_uri, const location*>;

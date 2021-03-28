@@ -249,20 +249,60 @@ void feature_language_features::semantic_tokens(const json& id, const json& para
     response_->respond(id, "", { { "data", num_array } });
 }
 
+// document symbol item kinds from the LSP specification
+enum class lsp_document_symbol_item_kind
+{
+    File = 1,
+	Module = 2,
+	Namespace = 3,
+	Package = 4,
+	Class = 5,
+	Method = 6,
+	Property = 7,
+	Field = 8,
+	Constructor = 9,
+	Enum = 10,
+	Interface = 11,
+	Function = 12,
+	Variable = 13,
+	Constant = 14,
+	String = 15,
+	Number = 16,
+	Boolean = 17,
+	Array = 18,
+	Object = 19,
+	Key = 20,
+	Null = 21,
+	EnumMember = 22,
+	Struct = 23,
+	Event = 24,
+	Operator = 25,
+	TypeParameter = 26
+};
+
+
+const std::unordered_map<parser_library::document_symbol_kind, lsp_document_symbol_item_kind> document_symbol_item_kind_mapping {
+    { parser_library::document_symbol_kind::ordinary, lsp_document_symbol_item_kind::Constant },
+    { parser_library::document_symbol_kind::variable, lsp_document_symbol_item_kind::Variable },
+    { parser_library::document_symbol_kind::instruction, lsp_document_symbol_item_kind::Function },
+    { parser_library::document_symbol_kind::sequence, lsp_document_symbol_item_kind::Array },
+    { parser_library::document_symbol_kind::copy_op, lsp_document_symbol_item_kind::Operator }
+};
+
 json feature_language_features::get_document_symbol_item_json(hlasm_plugin::parser_library::document_symbol_item symbol)
 {
-    return {{"name", symbol.get_name()},
-        {"kind", symbol.get_kind()},
-        {"range", range_to_json(symbol.get_range())},
-        {"selectionRange", range_to_json(symbol.get_selection_range())}};
+    return {{"name", symbol.name()},
+        {"kind", document_symbol_item_kind_mapping.at(symbol.kind())},
+        {"range", range_to_json(symbol.symbol_range())},
+        {"selectionRange", range_to_json(symbol.symbol_selection_range())}};
 }
 
 json feature_language_features::get_document_symbol_list_json(hlasm_plugin::parser_library::document_symbol_list symbol_list)
 {
     json result = json::array();
-    for (size_t i = 0; i < symbol_list.size(); i++)
+    for (auto symbol : symbol_list)
     {
-        result.push_back(get_document_symbol_item_json(symbol_list.item(i)));
+        result.push_back(get_document_symbol_item_json(symbol));
     }
     return result;
 }
@@ -271,9 +311,21 @@ void feature_language_features::document_symbol(const json& id, const json& para
 {
     auto document_uri = params["textDocument"]["uri"].get<std::string>();
     
-    auto aux_view = ws_mngr_.document_symbol(uri_to_path(document_uri).c_str());
+    auto symbol_list = ws_mngr_.document_symbol(uri_to_path(document_uri).c_str());
 
-    response_->respond(id, "", get_document_symbol_list_json(aux_view));
+    // trying out how children in outline work
+    hlasm_plugin::parser_library::position s(0,0);
+    hlasm_plugin::parser_library::range r(s,s);
+    json aux = json::array();
+    aux.push_back({
+        {"name", uri_to_path(document_uri).c_str()},
+        {"kind", lsp_document_symbol_item_kind::File},
+        {"range", range_to_json(r)},
+        {"selectionRange", range_to_json(r)},
+        {"children", get_document_symbol_list_json(symbol_list)}
+    });
+
+    response_->respond(id, "", aux);
 }
 
 
