@@ -142,12 +142,6 @@ std::vector<file_slice_t> file_slice_t::transform_slices(
     return ret;
 }
 
-std::vector<symbol_occurence> file_info::document_symbol_filtration()
-{
-    // for now return all occurences
-    return occurences;
-}
-
 
 
 } // namespace hlasm_plugin::parser_library::lsp

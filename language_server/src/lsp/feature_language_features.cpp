@@ -316,17 +316,8 @@ void feature_language_features::document_symbol(const json& id, const json& para
     // trying out how children in outline work
     hlasm_plugin::parser_library::position s(0,0);
     hlasm_plugin::parser_library::range r(s,s);
-    json aux = json::array();
-    aux.push_back({
-        {"name", uri_to_path(document_uri).c_str()},
-        {"detail", "detail"},
-        {"kind", lsp_document_symbol_item_kind::File},
-        {"range", range_to_json(r)},
-        {"selectionRange", range_to_json(r)},
-        {"children", get_document_symbol_list_json(symbol_list)}
-    });
 
-    response_->respond(id, "", aux);
+    response_->respond(id, "", get_document_symbol_list_json(symbol_list));
 }
 
 

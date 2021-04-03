@@ -48,6 +48,10 @@ public:
     // access sections
     const std::vector<std::unique_ptr<section>>& sections() const;
 
+    // access symbols
+    const std::unordered_map<id_index, symbol>& symbols() const;
+    std::vector<symbol> symbols_values();
+
     // access symbol dependency table
     symbol_dependency_tables symbol_dependencies;
 

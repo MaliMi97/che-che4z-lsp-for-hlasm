@@ -24,34 +24,40 @@
 
 namespace hlasm_plugin::parser_library::lsp {
 
-const std::unordered_map<occurence_kind ,document_symbol_kind> document_symbol_item_kind_mapping {
-    { occurence_kind::ORD, document_symbol_kind::ordinary },
-    { occurence_kind::VAR, document_symbol_kind::variable },
-    { occurence_kind::INSTR, document_symbol_kind::instruction },
-    { occurence_kind::SEQ, document_symbol_kind::sequence },
-    { occurence_kind::COPY_OP, document_symbol_kind::copy_op }
+const std::unordered_map<context::symbol_origin,document_symbol_kind> document_symbol_item_kind_mapping {
+    { context::symbol_origin::DAT, document_symbol_kind::ordinary },
+    { context::symbol_origin::EQU, document_symbol_kind::variable },
+    { context::symbol_origin::MACH, document_symbol_kind::instruction },
+    { context::symbol_origin::SECT, document_symbol_kind::sequence },
+    { context::symbol_origin::UNKNOWN, document_symbol_kind::copy_op }
 };
 
 document_symbol_list_s lsp_context::document_symbol(const std::string& document_uri) const
 {
     document_symbol_list_s result;
-    if (auto file = files_.find(document_uri); file != files_.end())
-    {
-        auto occurences = file->second->document_symbol_filtration();
-        for (symbol_occurence occ : occurences)
-        {
-            if (occ.name != nullptr)
-            {
-                result.push_back(document_symbol_item_s{
-                    *occ.name,
-                    document_symbol_item_kind_mapping.at(occ.kind),
-                    occ.occurence_range,
-                    occ.occurence_range
-                });
-            }
-        }
-    }
     
+    auto symbols_values = opencode_->hlasm_ctx.ord_ctx.symbols_values();
+    if (symbols_values.size() == 0)
+    {
+        return result;
+    }
+    for (auto value : symbols_values)
+    {
+        result.push_back(document_symbol_item_s{*(value.name), document_symbol_item_kind_mapping.at(value.attributes().origin), 
+            {value.symbol_location.pos, value.symbol_location.pos}, {value.symbol_location.pos, value.symbol_location.pos}});
+    }
+
+    auto variables = opencode_->variable_definitions;
+    if (variables.size() == 0)
+    {
+        return result;
+    }
+    for (auto aux : variables)
+    {
+        result.push_back(document_symbol_item_s{*(aux.name), document_symbol_kind::copy_op, 
+            {aux.def_position, aux.def_position}, {aux.def_position, aux.def_position}});
+    }
+
     return result;
 }
 
