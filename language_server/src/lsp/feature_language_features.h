@@ -43,8 +43,9 @@ private:
     void document_symbol(const json& id, const json& params);
 
     static json get_markup_content(std::string_view content);
-    json get_document_symbol_item_json(hlasm_plugin::parser_library::document_symbol_item symbol);
-    json get_document_symbol_list_json(hlasm_plugin::parser_library::document_symbol_list symbol_list);
+    json document_symbol_children_json(hlasm_plugin::parser_library::document_symbol_item symbol);
+    json document_symbol_item_json(hlasm_plugin::parser_library::document_symbol_item symbol);
+    json document_symbol_list_json(hlasm_plugin::parser_library::document_symbol_list symbol_list);
 };
 
 } // namespace hlasm_plugin::language_server::lsp

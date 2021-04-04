@@ -289,20 +289,30 @@ const std::unordered_map<parser_library::document_symbol_kind, lsp_document_symb
     { parser_library::document_symbol_kind::copy_op, lsp_document_symbol_item_kind::Operator }
 };
 
-json feature_language_features::get_document_symbol_item_json(hlasm_plugin::parser_library::document_symbol_item symbol)
+json  feature_language_features::document_symbol_children_json(hlasm_plugin::parser_library::document_symbol_item symbol)
+{
+    if (symbol.children().size() == 0)
+    {
+        return json::array();
+    }
+    return document_symbol_list_json(symbol.children());
+}
+
+json feature_language_features::document_symbol_item_json(hlasm_plugin::parser_library::document_symbol_item symbol)
 {
     return {{"name", symbol.name()},
         {"kind", document_symbol_item_kind_mapping.at(symbol.kind())},
         {"range", range_to_json(symbol.symbol_range())},
-        {"selectionRange", range_to_json(symbol.symbol_selection_range())}};
+        {"selectionRange", range_to_json(symbol.symbol_selection_range())},
+        {"children", document_symbol_children_json(symbol)}};
 }
 
-json feature_language_features::get_document_symbol_list_json(hlasm_plugin::parser_library::document_symbol_list symbol_list)
+json feature_language_features::document_symbol_list_json(hlasm_plugin::parser_library::document_symbol_list symbol_list)
 {
     json result = json::array();
     for (auto symbol : symbol_list)
     {
-        result.push_back(get_document_symbol_item_json(symbol));
+        result.push_back(document_symbol_item_json(symbol));
     }
     return result;
 }
@@ -313,11 +323,7 @@ void feature_language_features::document_symbol(const json& id, const json& para
     
     auto symbol_list = ws_mngr_.document_symbol(uri_to_path(document_uri).c_str());
 
-    // trying out how children in outline work
-    hlasm_plugin::parser_library::position s(0,0);
-    hlasm_plugin::parser_library::range r(s,s);
-
-    response_->respond(id, "", get_document_symbol_list_json(symbol_list));
+    response_->respond(id, "", document_symbol_list_json(symbol_list));
 }
 
 

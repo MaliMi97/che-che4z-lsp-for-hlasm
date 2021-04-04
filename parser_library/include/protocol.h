@@ -125,6 +125,10 @@ enum class PARSER_LIBRARY_EXPORT document_symbol_kind
     copy_op = 4
 };
 
+struct PARSER_LIBRARY_EXPORT document_symbol_item;
+template class PARSER_LIBRARY_EXPORT sequence<document_symbol_item, const lsp::document_symbol_item_s*>;
+using document_symbol_list = sequence<document_symbol_item, const lsp::document_symbol_item_s*>;
+
 struct PARSER_LIBRARY_EXPORT document_symbol_item
 {
     document_symbol_item(const lsp::document_symbol_item_s& item);
@@ -132,13 +136,11 @@ struct PARSER_LIBRARY_EXPORT document_symbol_item
     document_symbol_kind kind() const;
     range symbol_range() const;
     range symbol_selection_range() const;
+    document_symbol_list children() const;
 
 private:
     const lsp::document_symbol_item_s& item_;
 };
-
-template class PARSER_LIBRARY_EXPORT sequence<document_symbol_item, const lsp::document_symbol_item_s*>;
-using document_symbol_list = sequence<document_symbol_item, const lsp::document_symbol_item_s*>;
 
 struct PARSER_LIBRARY_EXPORT position_uri
 {
