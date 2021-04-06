@@ -118,11 +118,15 @@ using completion_list = sequence<completion_item, const lsp::completion_item_s*>
 
 enum class PARSER_LIBRARY_EXPORT document_symbol_kind
 {
-    ordinary = 0,
-    variable = 1,
-    sequence = 2,
-    instruction = 3,
-    copy_op = 4
+    DAT = 0,
+    EQU = 1,
+    MACH = 2,
+    UNKNOWN = 3,
+    VAR = 4,
+    COMMON = 5,
+    DUMMY = 6,
+    EXECUTABLE = 7,
+    READONLY = 8
 };
 
 struct PARSER_LIBRARY_EXPORT document_symbol_item;

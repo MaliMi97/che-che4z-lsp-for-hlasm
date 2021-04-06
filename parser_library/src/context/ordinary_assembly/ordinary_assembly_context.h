@@ -48,8 +48,7 @@ public:
     // access sections
     const std::vector<std::unique_ptr<section>>& sections() const;
 
-    // access symbols
-    const std::unordered_map<id_index, symbol>& symbols() const;
+    // access symbol values
     std::vector<symbol> symbols_values();
 
     // access symbol dependency table
@@ -68,6 +67,9 @@ public:
     // gets symbol by name
     virtual const symbol* get_symbol(id_index name) const override;
     symbol* get_symbol(id_index name);
+
+    // gets section by name
+    section* get_section(id_index name);
 
     // access current section
     const section* current_section() const;

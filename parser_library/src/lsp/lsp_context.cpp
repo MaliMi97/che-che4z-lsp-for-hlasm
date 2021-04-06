@@ -24,18 +24,23 @@
 
 namespace hlasm_plugin::parser_library::lsp {
 
-const std::unordered_map<context::symbol_origin,document_symbol_kind> document_symbol_item_kind_mapping {
-    { context::symbol_origin::DAT, document_symbol_kind::ordinary },
-    { context::symbol_origin::EQU, document_symbol_kind::variable },
-    { context::symbol_origin::MACH, document_symbol_kind::instruction },
-    { context::symbol_origin::SECT, document_symbol_kind::sequence },
-    { context::symbol_origin::UNKNOWN, document_symbol_kind::copy_op }
+const std::unordered_map<context::symbol_origin,document_symbol_kind> document_symbol_item_kind_mapping_symbol {
+    { context::symbol_origin::DAT, document_symbol_kind::DAT },
+    { context::symbol_origin::EQU, document_symbol_kind::EQU },
+    { context::symbol_origin::MACH, document_symbol_kind::MACH },
+    { context::symbol_origin::UNKNOWN, document_symbol_kind::UNKNOWN }
+};
+
+const std::unordered_map<context::section_kind,document_symbol_kind> document_symbol_item_kind_mapping_section {
+    { context::section_kind::COMMON, document_symbol_kind::COMMON },
+    { context::section_kind::DUMMY, document_symbol_kind::DUMMY },
+    { context::section_kind::EXECUTABLE, document_symbol_kind::EXECUTABLE },
+    { context::section_kind::READONLY, document_symbol_kind::READONLY }
 };
 
 document_symbol_list_s lsp_context::document_symbol(const std::string& document_uri) const
 {
     document_symbol_list_s result;
-    
     auto symbols_values = opencode_->hlasm_ctx.ord_ctx.symbols_values();
     if (symbols_values.size() == 0)
     {
@@ -43,8 +48,27 @@ document_symbol_list_s lsp_context::document_symbol(const std::string& document_
     }
     for (auto value : symbols_values)
     {
-        result.push_back(document_symbol_item_s{*(value.name), document_symbol_item_kind_mapping.at(value.attributes().origin), 
-            {value.symbol_location.pos, value.symbol_location.pos}, {value.symbol_location.pos, value.symbol_location.pos}});
+        if (value.attributes().origin == context::symbol_origin::SECT)
+        {
+            auto reference_list = references(document_uri, value.symbol_location.pos);
+            auto section = opencode_->hlasm_ctx.ord_ctx.get_section(value.name);
+            if (section != nullptr)
+            {
+                for (auto ref : reference_list)
+                {
+                    if (ref.pos.column == 0)
+                    {
+                        result.push_back(document_symbol_item_s{*(value.name), document_symbol_item_kind_mapping_section.at(section->kind), 
+                            {ref.pos, ref.pos}, {ref.pos, ref.pos}});
+                    }
+                }
+            }
+        }
+        else
+        {
+            result.push_back(document_symbol_item_s{*(value.name), document_symbol_item_kind_mapping_symbol.at(value.attributes().origin), 
+                {value.symbol_location.pos, value.symbol_location.pos}, {value.symbol_location.pos, value.symbol_location.pos}});
+        }
     }
 
     auto variables = opencode_->variable_definitions;
@@ -54,7 +78,7 @@ document_symbol_list_s lsp_context::document_symbol(const std::string& document_
     }
     for (auto aux : variables)
     {
-        result.push_back(document_symbol_item_s{*(aux.name), document_symbol_kind::copy_op, 
+        result.push_back(document_symbol_item_s{*(aux.name), document_symbol_kind::VAR, 
             {aux.def_position, aux.def_position}, {aux.def_position, aux.def_position}});
     }
 

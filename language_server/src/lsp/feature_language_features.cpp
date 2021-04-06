@@ -153,7 +153,6 @@ enum class lsp_completion_item_kind
     type_parameter = 25
 };
 
-
 const std::unordered_map<parser_library::completion_item_kind, lsp_completion_item_kind> completion_item_kind_mapping {
     { parser_library::completion_item_kind::mach_instr, lsp_completion_item_kind::function },
     { parser_library::completion_item_kind::asm_instr, lsp_completion_item_kind::function },
@@ -162,7 +161,6 @@ const std::unordered_map<parser_library::completion_item_kind, lsp_completion_it
     { parser_library::completion_item_kind::var_sym, lsp_completion_item_kind::variable },
     { parser_library::completion_item_kind::seq_sym, lsp_completion_item_kind::reference }
 };
-
 
 json feature_language_features::get_markup_content(std::string_view content)
 {
@@ -282,11 +280,15 @@ enum class lsp_document_symbol_item_kind
 
 
 const std::unordered_map<parser_library::document_symbol_kind, lsp_document_symbol_item_kind> document_symbol_item_kind_mapping {
-    { parser_library::document_symbol_kind::ordinary, lsp_document_symbol_item_kind::Constant },
-    { parser_library::document_symbol_kind::variable, lsp_document_symbol_item_kind::Variable },
-    { parser_library::document_symbol_kind::instruction, lsp_document_symbol_item_kind::Function },
-    { parser_library::document_symbol_kind::sequence, lsp_document_symbol_item_kind::Array },
-    { parser_library::document_symbol_kind::copy_op, lsp_document_symbol_item_kind::Operator }
+    { parser_library::document_symbol_kind::DAT, lsp_document_symbol_item_kind::Array },
+    { parser_library::document_symbol_kind::EQU, lsp_document_symbol_item_kind::Boolean },
+    { parser_library::document_symbol_kind::MACH, lsp_document_symbol_item_kind::Constant },
+    { parser_library::document_symbol_kind::UNKNOWN, lsp_document_symbol_item_kind::Operator },
+    { parser_library::document_symbol_kind::VAR, lsp_document_symbol_item_kind::Variable },
+    { parser_library::document_symbol_kind::COMMON, lsp_document_symbol_item_kind::Struct },
+    { parser_library::document_symbol_kind::DUMMY, lsp_document_symbol_item_kind::Class },
+    { parser_library::document_symbol_kind::EXECUTABLE, lsp_document_symbol_item_kind::Object },
+    { parser_library::document_symbol_kind::READONLY, lsp_document_symbol_item_kind::Enum }
 };
 
 json  feature_language_features::document_symbol_children_json(hlasm_plugin::parser_library::document_symbol_item symbol)

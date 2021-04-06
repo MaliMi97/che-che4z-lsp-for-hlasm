@@ -30,12 +30,10 @@ void ordinary_assembly_context::create_private_section()
 
 const std::vector<std::unique_ptr<section>>& ordinary_assembly_context::sections() const { return sections_; }
 
-const std::unordered_map<id_index, symbol>& ordinary_assembly_context::symbols() const { return symbols_; }
-
 std::vector<symbol> ordinary_assembly_context::symbols_values()
 {
     std::vector<symbol> result;
-    for (auto aux : symbols())
+    for (auto& aux : symbols_)
     {
         result.push_back(aux.second);
     }
@@ -88,6 +86,18 @@ symbol* ordinary_assembly_context::get_symbol(id_index name)
     auto tmp = symbols_.find(name);
 
     return tmp == symbols_.end() ? nullptr : &tmp->second;
+}
+
+section* ordinary_assembly_context::get_section(id_index name)
+{
+    for (auto& tmp : sections_)
+    {
+        if (tmp->name == name)
+        {
+            return &(*tmp);
+        }
+    }
+    return nullptr;
 }
 
 const section* ordinary_assembly_context::current_section() const { return curr_section_; }
