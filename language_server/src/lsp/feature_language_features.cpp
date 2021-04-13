@@ -312,7 +312,7 @@ json feature_language_features::document_symbol_item_json(hlasm_plugin::parser_l
 json feature_language_features::document_symbol_list_json(hlasm_plugin::parser_library::document_symbol_list symbol_list)
 {
     json result = json::array();
-    for (auto symbol : symbol_list)
+    for (const auto& symbol : symbol_list)
     {
         result.push_back(document_symbol_item_json(symbol));
     }

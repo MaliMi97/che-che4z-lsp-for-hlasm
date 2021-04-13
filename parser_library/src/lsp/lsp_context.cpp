@@ -41,24 +41,20 @@ const std::unordered_map<context::section_kind,document_symbol_kind> document_sy
 document_symbol_list_s lsp_context::document_symbol(const std::string& document_uri) const
 {
     document_symbol_list_s result;
-    auto symbols_values = opencode_->hlasm_ctx.ord_ctx.symbols_values();
-    if (symbols_values.size() == 0)
+    auto symbols = opencode_->hlasm_ctx.ord_ctx.symbols();
+    for (const auto& value : symbols)
     {
-        return result;
-    }
-    for (auto value : symbols_values)
-    {
-        if (value.attributes().origin == context::symbol_origin::SECT)
+        if (value.second.attributes().origin == context::symbol_origin::SECT)
         {
-            auto reference_list = references(document_uri, value.symbol_location.pos);
-            auto section = opencode_->hlasm_ctx.ord_ctx.get_section(value.name);
+            const auto& reference_list = references(document_uri, value.second.symbol_location.pos);
+            auto section = opencode_->hlasm_ctx.ord_ctx.get_section(value.second.name);
             if (section != nullptr)
             {
-                for (auto ref : reference_list)
+                for (const auto& ref : reference_list)
                 {
                     if (ref.pos.column == 0)
                     {
-                        result.push_back(document_symbol_item_s{*(value.name), document_symbol_item_kind_mapping_section.at(section->kind), 
+                        result.emplace_back(document_symbol_item_s{*(value.second.name), document_symbol_item_kind_mapping_section.at(section->kind), 
                             {ref.pos, ref.pos}, {ref.pos, ref.pos}});
                     }
                 }
@@ -66,19 +62,15 @@ document_symbol_list_s lsp_context::document_symbol(const std::string& document_
         }
         else
         {
-            result.push_back(document_symbol_item_s{*(value.name), document_symbol_item_kind_mapping_symbol.at(value.attributes().origin), 
-                {value.symbol_location.pos, value.symbol_location.pos}, {value.symbol_location.pos, value.symbol_location.pos}});
+            result.emplace_back(document_symbol_item_s{*(value.second.name), document_symbol_item_kind_mapping_symbol.at(value.second.attributes().origin), 
+                {value.second.symbol_location.pos, value.second.symbol_location.pos}, {value.second.symbol_location.pos, value.second.symbol_location.pos}});
         }
     }
 
-    auto variables = opencode_->variable_definitions;
-    if (variables.size() == 0)
+    const auto& variables = opencode_->variable_definitions;
+    for (const auto& aux : variables)
     {
-        return result;
-    }
-    for (auto aux : variables)
-    {
-        result.push_back(document_symbol_item_s{*(aux.name), document_symbol_kind::VAR, 
+        result.emplace_back(document_symbol_item_s{*(aux.name), document_symbol_kind::VAR, 
             {aux.def_position, aux.def_position}, {aux.def_position, aux.def_position}});
     }
 
