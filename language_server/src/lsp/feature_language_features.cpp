@@ -285,6 +285,7 @@ const std::unordered_map<parser_library::document_symbol_kind, lsp_document_symb
     { parser_library::document_symbol_kind::MACH, lsp_document_symbol_item_kind::Constant },
     { parser_library::document_symbol_kind::UNKNOWN, lsp_document_symbol_item_kind::Operator },
     { parser_library::document_symbol_kind::VAR, lsp_document_symbol_item_kind::Variable },
+    { parser_library::document_symbol_kind::SEQ, lsp_document_symbol_item_kind::String },
     { parser_library::document_symbol_kind::COMMON, lsp_document_symbol_item_kind::Struct },
     { parser_library::document_symbol_kind::DUMMY, lsp_document_symbol_item_kind::Class },
     { parser_library::document_symbol_kind::EXECUTABLE, lsp_document_symbol_item_kind::Object },

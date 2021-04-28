@@ -124,10 +124,11 @@ enum class PARSER_LIBRARY_EXPORT document_symbol_kind
     MACH = 2,
     UNKNOWN = 3,
     VAR = 4,
-    COMMON = 5,
-    DUMMY = 6,
-    EXECUTABLE = 7,
-    READONLY = 8
+    SEQ = 5,
+    COMMON = 6,
+    DUMMY = 7,
+    EXECUTABLE = 8,
+    READONLY = 9
 };
 
 struct PARSER_LIBRARY_EXPORT document_symbol_item;

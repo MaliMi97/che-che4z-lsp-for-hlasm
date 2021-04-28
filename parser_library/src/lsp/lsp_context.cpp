@@ -38,9 +38,31 @@ const std::unordered_map<context::section_kind,document_symbol_kind> document_sy
     { context::section_kind::READONLY, document_symbol_kind::READONLY }
 };
 
+const std::unordered_map<occurence_kind,document_symbol_kind> document_symbol_item_kind_mapping_macro {
+    { occurence_kind::VAR, document_symbol_kind::VAR },
+    { occurence_kind::SEQ, document_symbol_kind::SEQ }
+};
+
 document_symbol_list_s lsp_context::document_symbol(const std::string& document_uri) const
 {
     document_symbol_list_s result;
+    auto file = files_.find(document_uri);
+    if (file->second->type == file_type::MACRO)
+    {
+        auto occurences = file->second->get_occurences();
+        for (auto& occ : occurences)
+        {
+            if (occ.kind == occurence_kind::VAR || occ.kind == occurence_kind::SEQ)
+            {
+                position aux = definition(document_uri, occ.occurence_range.start).pos;
+                result.emplace_back(document_symbol_item_s{occ.name, document_symbol_item_kind_mapping_macro.at(occ.kind), 
+                    {aux, {aux.line, aux.column+occ.occurence_range.end.column-occ.occurence_range.start.column}}});
+            }
+        }
+        std::set<document_symbol_item_s> s(result.begin(), result.end());
+        result.assign(s.begin(), s.end());
+        return result;
+    }
     auto symbols = opencode_->hlasm_ctx.ord_ctx.symbols();
     for (const auto& value : symbols)
     {
