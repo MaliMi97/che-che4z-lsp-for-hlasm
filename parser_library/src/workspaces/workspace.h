@@ -18,12 +18,14 @@
 #include <atomic>
 #include <filesystem>
 #include <memory>
+#include <regex>
 #include <string>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
-#include "json.hpp"
-
+#include "config/pgm_conf.h"
+#include "config/proc_conf.h"
 #include "diagnosable_impl.h"
 #include "file_manager.h"
 #include "lib_config.h"
@@ -142,7 +144,7 @@ private:
     bool load_and_process_config();
     // Loads the pgm_conf.json and proc_grps.json from disk, adds them to file_manager_ and parses both jsons.
     // Returns false if there is any error.
-    bool load_config(nlohmann::json& proc_grps_json, nlohmann::json& pgm_conf_json, file_ptr& pgm_conf_file);
+    bool load_config(config::proc_conf& proc_groups, config::pgm_conf& pgm_config, file_ptr& pgm_conf_file);
 
     bool is_wildcard(const std::string& str);
 

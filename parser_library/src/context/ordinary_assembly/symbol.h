@@ -21,6 +21,7 @@
 #include "address.h"
 #include "location.h"
 #include "symbol_attributes.h"
+#include "../processing_context.h"
 
 namespace hlasm_plugin {
 namespace parser_library {
@@ -66,7 +67,8 @@ private:
 class symbol
 {
 public:
-    symbol(id_index name, symbol_value value, symbol_attributes attributes, location symbol_location);
+    symbol(
+        id_index name, symbol_value value, symbol_attributes attributes, location symbol_location, processing_stack_t stack);
 
     const symbol_value& value() const;
     const symbol_attributes& attributes() const;
@@ -79,10 +81,12 @@ public:
 
     const id_index name;
     const location symbol_location;
+    const processing_stack_t& proc_stack() const;
 
 private:
     symbol_value value_;
     symbol_attributes attributes_;
+    processing_stack_t stack_;
 };
 
 } // namespace context

@@ -54,7 +54,7 @@ document_symbol_list_s lsp_context::document_symbol(const std::string& document_
                 {
                     if (ref.pos.column == 0)
                     {
-                        result.emplace_back(document_symbol_item_s{*(value.second.name), document_symbol_item_kind_mapping_section.at(section->kind), 
+                        result.emplace_back(document_symbol_item_s{value.second.name, document_symbol_item_kind_mapping_section.at(section->kind), 
                             {ref.pos, ref.pos}, {ref.pos, ref.pos}});
                     }
                 }
@@ -62,7 +62,7 @@ document_symbol_list_s lsp_context::document_symbol(const std::string& document_
         }
         else
         {
-            result.emplace_back(document_symbol_item_s{*(value.second.name), document_symbol_item_kind_mapping_symbol.at(value.second.attributes().origin), 
+            result.emplace_back(document_symbol_item_s{value.second.name, document_symbol_item_kind_mapping_symbol.at(value.second.attributes().origin), 
                 {value.second.symbol_location.pos, value.second.symbol_location.pos}, {value.second.symbol_location.pos, value.second.symbol_location.pos}});
         }
     }
@@ -70,7 +70,7 @@ document_symbol_list_s lsp_context::document_symbol(const std::string& document_
     const auto& variables = opencode_->variable_definitions;
     for (const auto& aux : variables)
     {
-        result.emplace_back(document_symbol_item_s{*(aux.name), document_symbol_kind::VAR, 
+        result.emplace_back(document_symbol_item_s{aux.name, document_symbol_kind::VAR, 
             {aux.def_position, aux.def_position}, {aux.def_position, aux.def_position}});
     }
 
@@ -107,6 +107,8 @@ void lsp_context::add_opencode(opencode_info_ptr opencode_i, text_data_ref_t tex
 
     distribute_file_occurences(opencode_->file_occurences);
 }
+
+macro_info_ptr lsp_context::get_macro_info(const context::macro_def_ptr& macro_def) const { return macros_.at(macro_def); }
 
 location lsp_context::definition(const std::string& document_uri, const position pos) const
 {
@@ -168,12 +170,12 @@ hover_result lsp_context::hover(const std::string& document_uri, const position 
 
 size_t constexpr continuation_column = 71;
 
-bool is_continued_line(std::string_view line)
+bool lsp_context::is_continued_line(std::string_view line) const
 {
     return line.size() > continuation_column && !isspace(line[continuation_column]);
 }
 
-bool should_complete_instr(const text_data_ref_t& text, const position pos)
+bool lsp_context::should_complete_instr(const text_data_ref_t& text, const position pos) const
 {
     bool line_before_continued = pos.line > 0 ? is_continued_line(text.get_line(pos.line - 1)) : false;
 

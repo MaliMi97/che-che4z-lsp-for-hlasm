@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "protocol.h"
+#include "../context/id_storage.h"
 
 namespace hlasm_plugin::parser_library::lsp {
 
@@ -17,13 +18,13 @@ struct document_symbol_item_s
 {
 public:
     // contents directly passed via constructor
-    document_symbol_item_s(std::string name,
+    document_symbol_item_s(hlasm_plugin::parser_library::context::id_index name,
         document_symbol_kind kind,
         range symbol_range,
         range symbol_selection_range);
 
     // several features of document symbol item from LSP
-    std::string name;
+    hlasm_plugin::parser_library::context::id_index name;
     document_symbol_kind kind;
     range symbol_range;
     range symbol_selection_range;

@@ -15,8 +15,6 @@
 
 #include "feature_language_features.h"
 
-#include <iostream>
-
 #include "../feature.h"
 
 namespace hlasm_plugin::language_server::lsp {
@@ -153,6 +151,7 @@ enum class lsp_completion_item_kind
     type_parameter = 25
 };
 
+
 const std::unordered_map<parser_library::completion_item_kind, lsp_completion_item_kind> completion_item_kind_mapping {
     { parser_library::completion_item_kind::mach_instr, lsp_completion_item_kind::function },
     { parser_library::completion_item_kind::asm_instr, lsp_completion_item_kind::function },
@@ -161,6 +160,7 @@ const std::unordered_map<parser_library::completion_item_kind, lsp_completion_it
     { parser_library::completion_item_kind::var_sym, lsp_completion_item_kind::variable },
     { parser_library::completion_item_kind::seq_sym, lsp_completion_item_kind::reference }
 };
+
 
 json feature_language_features::get_markup_content(std::string_view content)
 {
@@ -302,7 +302,7 @@ json  feature_language_features::document_symbol_children_json(hlasm_plugin::par
 
 json feature_language_features::document_symbol_item_json(hlasm_plugin::parser_library::document_symbol_item symbol)
 {
-    return {{"name", symbol.name()},
+    return {{"name", *(symbol.name())},
         {"kind", document_symbol_item_kind_mapping.at(symbol.kind())},
         {"range", range_to_json(symbol.symbol_range())},
         {"selectionRange", range_to_json(symbol.symbol_selection_range())},

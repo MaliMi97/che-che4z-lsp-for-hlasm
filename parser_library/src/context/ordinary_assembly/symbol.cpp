@@ -141,7 +141,8 @@ const symbol_value::reloc_value_t& symbol_value::get_reloc() const { return std:
 
 symbol_value_kind symbol_value::value_kind() const { return static_cast<symbol_value_kind>(value_.index()); }
 
-symbol::symbol(id_index name, symbol_value value, symbol_attributes attributes, location symbol_location)
+symbol::symbol(
+    id_index name, symbol_value value, symbol_attributes attributes, location symbol_location, processing_stack_t stack)
     : name(name)
     , symbol_location(std::move(symbol_location))
     , value_(std::move(value))
@@ -168,3 +169,5 @@ void symbol::set_value(symbol_value value)
 void symbol::set_length(symbol_attributes::len_attr value) { attributes_.length(value); }
 
 void symbol::set_scale(symbol_attributes::scale_attr value) { attributes_.scale(value); }
+
+const processing_stack_t& symbol::proc_stack() const { return stack_; }

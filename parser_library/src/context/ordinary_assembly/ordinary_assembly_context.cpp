@@ -19,6 +19,7 @@
 #include <stdexcept>
 
 #include "alignment.h"
+#include "context/hlasm_context.h"
 
 namespace hlasm_plugin::parser_library::context {
 
@@ -32,16 +33,17 @@ const std::vector<std::unique_ptr<section>>& ordinary_assembly_context::sections
 
 const std::unordered_map<id_index, symbol>& ordinary_assembly_context::symbols() const { return symbols_; }
 
-ordinary_assembly_context::ordinary_assembly_context(id_storage& storage)
+ordinary_assembly_context::ordinary_assembly_context(id_storage& storage, const hlasm_context& hlasm_ctx)
     : curr_section_(nullptr)
     , ids(storage)
+    , hlasm_ctx_(hlasm_ctx)
     , symbol_dependencies(*this)
 {}
 
 bool ordinary_assembly_context::create_symbol(
     id_index name, symbol_value value, symbol_attributes attributes, location symbol_location)
 {
-    auto res = symbols_.try_emplace(name, name, value, attributes, std::move(symbol_location));
+    auto res = symbols_.try_emplace(name, name, value, attributes, std::move(symbol_location), hlasm_ctx_.processing_stack());
 
     if (!res.second)
         throw std::runtime_error("symbol name in use");
@@ -110,7 +112,12 @@ void ordinary_assembly_context::set_section(id_index name, const section_kind ki
         curr_section_ = sections_.back().get();
 
         auto tmp_addr = curr_section_->current_location_counter().current_address();
-        symbols_.try_emplace(name, name, tmp_addr, symbol_attributes::make_section_attrs(), std::move(symbol_location));
+        symbols_.try_emplace(name,
+            name,
+            tmp_addr,
+            symbol_attributes::make_section_attrs(),
+            std::move(symbol_location),
+            hlasm_ctx_.processing_stack());
     }
 }
 
@@ -136,8 +143,12 @@ void ordinary_assembly_context::set_location_counter(id_index name, location sym
     {
         auto tmp_addr = curr_section_->current_location_counter().current_address();
 
-        auto sym_tmp = symbols_.try_emplace(
-            name, name, tmp_addr, symbol_attributes::make_section_attrs(), std::move(symbol_location));
+        auto sym_tmp = symbols_.try_emplace(name,
+            name,
+            tmp_addr,
+            symbol_attributes::make_section_attrs(),
+            std::move(symbol_location),
+            hlasm_ctx_.processing_stack());
         if (!sym_tmp.second)
             throw std::invalid_argument("symbol already defined");
     }

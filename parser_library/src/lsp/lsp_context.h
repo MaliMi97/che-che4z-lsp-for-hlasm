@@ -39,6 +39,8 @@ public:
     void add_macro(macro_info_ptr macro_i, text_data_ref_t text_data = text_data_ref_t());
     void add_opencode(opencode_info_ptr opencode_i, text_data_ref_t text_data);
 
+    macro_info_ptr get_macro_info(const context::macro_def_ptr & macro_def) const;
+
     location definition(const std::string& document_uri, position pos) const override;
     location_list references(const std::string& document_uri, position pos) const override;
     hover_result hover(const std::string& document_uri, position pos) const override;
@@ -66,6 +68,8 @@ private:
     completion_list_s complete_seq(const file_info& file, position pos) const;
     completion_list_s complete_instr(const file_info& file, position pos) const;
 
+    bool is_continued_line(std::string_view line) const;
+    bool should_complete_instr(const text_data_ref_t& text, const position pos) const;
     std::string get_macro_documentation(const macro_info& m) const;
 };
 
