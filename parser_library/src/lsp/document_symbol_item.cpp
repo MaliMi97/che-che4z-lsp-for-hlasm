@@ -24,7 +24,7 @@ document_symbol_item_s::document_symbol_item_s(hlasm_plugin::parser_library::con
 
 bool operator<(const document_symbol_item_s& lhs, const document_symbol_item_s& rhs)
 {
-    return lhs.symbol_range.start.line < rhs.symbol_range.start.line;
+    return *(lhs.name) < *(rhs.name);
 }
 
 } // namespace hlasm_plugin::parser_library::lsp
