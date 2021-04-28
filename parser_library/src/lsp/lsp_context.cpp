@@ -66,7 +66,7 @@ document_symbol_list_s lsp_context::document_symbol(const std::string& document_
     
     auto stack = opencode_->hlasm_ctx.processing_stack();
     auto symbols = opencode_->hlasm_ctx.ord_ctx.symbols();
-    if (stack.size() > 0)
+    if (stack.size() == 0)
     {
         for (const auto& value : symbols)
         {
@@ -88,6 +88,7 @@ document_symbol_list_s lsp_context::document_symbol(const std::string& document_
             }
             else
             {
+                if (value.second.proc_stack().size() > 0)
                 result.emplace_back(document_symbol_item_s{value.second.name, document_symbol_item_kind_mapping_symbol.at(value.second.attributes().origin), 
                     {value.second.symbol_location.pos, value.second.symbol_location.pos}, {value.second.symbol_location.pos, value.second.symbol_location.pos}});
             }
