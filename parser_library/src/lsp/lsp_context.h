@@ -71,6 +71,8 @@ private:
     bool is_continued_line(std::string_view line) const;
     bool should_complete_instr(const text_data_ref_t& text, const position pos) const;
     std::string get_macro_documentation(const macro_info& m) const;
+
+    document_symbol_list_s document_symbol_file(const std::string& document_uri) const;
 };
 
 } // namespace hlasm_plugin::parser_library::lsp

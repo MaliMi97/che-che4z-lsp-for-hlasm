@@ -27,6 +27,10 @@ public:
     document_symbol_item_s(hlasm_plugin::parser_library::context::id_index name,
         document_symbol_kind kind,
         range symbol_range);
+    document_symbol_item_s(hlasm_plugin::parser_library::context::id_index name,
+        document_symbol_kind kind,
+        range symbol_range,
+        document_symbol_list_s children);
 
     // several features of document symbol item from LSP
     hlasm_plugin::parser_library::context::id_index name;
@@ -34,6 +38,8 @@ public:
     range symbol_range;
     range symbol_selection_range;
     document_symbol_list_s children;
+
+    std::vector<range> scope;
 };
     
 } // namespace hlasm_plugin::parser_library::lsp

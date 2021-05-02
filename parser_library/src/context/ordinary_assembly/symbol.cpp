@@ -147,6 +147,7 @@ symbol::symbol(
     , symbol_location(std::move(symbol_location))
     , value_(std::move(value))
     , attributes_(attributes)
+    , stack_(std::move(stack))
 {}
 
 const symbol_value& symbol::value() const { return value_; }

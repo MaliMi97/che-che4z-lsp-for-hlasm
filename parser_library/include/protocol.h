@@ -128,7 +128,8 @@ enum class PARSER_LIBRARY_EXPORT document_symbol_kind
     COMMON = 6,
     DUMMY = 7,
     EXECUTABLE = 8,
-    READONLY = 9
+    READONLY = 9,
+    MACRO = 10
 };
 
 struct PARSER_LIBRARY_EXPORT document_symbol_item;
