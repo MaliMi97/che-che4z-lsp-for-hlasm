@@ -150,7 +150,7 @@ document_symbol_list_s lsp_context::document_symbol_file(const std::string& docu
     // in a minute we will be sorting them in sects
     // now, I did not use opencode_->variable_definitions, because variables from macros are not there
     document_symbol_list_s variable_list;
-    for (auto& occ : occurence_list)
+    for (const auto& occ : occurence_list)
     {
         if (occ.kind == occurence_kind::VAR || occ.kind == occurence_kind::SEQ)
         {
@@ -198,7 +198,7 @@ document_symbol_list_s lsp_context::document_symbol(const std::string& document_
     if (file->second->type == file_type::MACRO)
     {
         document_symbol_list_s result;
-        for (auto& occ : occurence_list)
+        for (const auto& occ : occurence_list)
         {
             if (occ.kind == occurence_kind::VAR || occ.kind == occurence_kind::SEQ)
             {
@@ -227,11 +227,17 @@ document_symbol_list_s lsp_context::document_symbol(const std::string& document_
         std::string path = i.first->definition_location.file;
         context::id_index label = i.first->id;
         document_symbol_list_s macro_symbol_list = document_symbol_file(path);
-        for (auto& occ : occurence_list)
+        for (const auto& occ : occurence_list)
         {
             if (occ.name == nullptr && hover(document_uri,occ.occurence_range.start).find(" "+(*label)+" ") != std::string::npos)
             {
-                 result.emplace_back(document_symbol_item_s{label,document_symbol_kind::MACRO,occ.occurence_range,macro_symbol_list});
+                // adjust location of macros' children
+                for (auto& s : macro_symbol_list)
+                {
+                    s.symbol_range = occ.occurence_range;
+                    s.symbol_selection_range = occ.occurence_range;
+                }
+                result.emplace_back(document_symbol_item_s{label,document_symbol_kind::MACRO,occ.occurence_range,macro_symbol_list});
             }
         }
     }
@@ -245,6 +251,8 @@ document_symbol_list_s lsp_context::document_symbol(const std::string& document_
     //          Will the new sect also be under the old sect?
     //          Will the old sect stop, the sect inside macro start and take over? Will the sect inside macro end with the macro? Will then the old sect continue?
     //          Or will the program just collapse?
+    // what if I have macro inside macro?
+    // what about the COPY file_type?
 }
 
 void lsp_context::add_file(file_info file_i)
