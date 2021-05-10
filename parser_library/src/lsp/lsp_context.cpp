@@ -44,159 +44,115 @@ const std::unordered_map<occurence_kind,document_symbol_kind> document_symbol_it
     { occurence_kind::SEQ, document_symbol_kind::SEQ }
 };
 
-// finds end of a section
-position_t find_end(const position_t& line, std::vector<position_t>& end_list)
+
+std::map<std::string, document_symbol_list_s> lsp_context::document_symbol_macro_copy() const
 {
-    position_t res = INT64_MAX;
-    for (const auto& end : end_list)
+    std::map<std::string, document_symbol_list_s> result;
+    for (const auto& [name,info] : files_)
     {
-        if (end > line && end < res)
+        if (info->type != file_type::OPENCODE)
         {
-            res = end;
+            result.insert({name, document_symbol_file(name)});
         }
     }
-    return res;
+    return result;
 }
 
-// checks whether variable is within a sect
-bool is_in_sect(const document_symbol_item_s& sect, const position_t& line)
-{
-    for (const auto& sc : sect.scope)
-    {
-        if (sc.start.line < line && line < sc.end.line)
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
-// gets all ordinary and variable symbols in a file and sorts them in sects
 document_symbol_list_s lsp_context::document_symbol_file(const std::string& document_uri) const
 {
-    // result in this function will be a container for symbols that do not belong to any sect
-    // at the very end, we will combine it with container for sects and return it
-    document_symbol_list_s result;
-    auto file = files_.find(document_uri);
-    // get ENDs of all SECTs in a file
-    // are used later to find scopes of sects
-    // we will then assign variables as children of a sect if they are within the scope
-    std::vector<position_t> end_list;
-    const auto& occurence_list = file->second->get_occurences();
-    for (const auto& occ : occurence_list)
-    {
-        if (occ.name != nullptr)
-        {
-            if (*occ.name == "END" || *occ.name == "CSECT" || *occ.name == "DSECT" || *occ.name == "ESECT" || *occ.name == "RSECT" )
-            {
-                end_list.push_back(occ.occurence_range.start.line);
-            }
-        }
-    }
-
+    std::map<const context::section*, document_symbol_list_s> sect_list;
     const auto& symbol_list = opencode_->hlasm_ctx.ord_ctx.symbols();
-    // get all sects in a file and find their scopes
-    // if there is better way to do so, then I am all ears
-    document_symbol_list_s sect_list;
-    for (const auto& s : symbol_list)
+    for (const auto& [id,sym] : symbol_list)
     {
-        if (s.second.proc_stack().at(s.second.proc_stack().size()-1).proc_location.file == file->first
-            &&  s.second.attributes().origin == context::symbol_origin::SECT)
+        if (sym.symbol_location.file == document_uri)
         {
-            document_symbol_item_s sect = document_symbol_item_s{s.first, 
-                                        document_symbol_item_kind_mapping_section.at(opencode_->hlasm_ctx.ord_ctx.get_section(s.first)->kind), 
-                                        {s.second.symbol_location.pos, s.second.symbol_location.pos}};
-            const auto& reference_list = references(file->first, s.second.symbol_location.pos);
-            for (const auto& ref : reference_list)
+            if (sym.attributes().origin == context::symbol_origin::SECT)
             {
-                if (ref.pos.column == 0)
-                {
-                    sect.scope.push_back({ref.pos, {find_end(ref.pos.line, end_list),0}});
-                }
+                sect_list.insert({opencode_->hlasm_ctx.ord_ctx.get_section(id), {}});
             }
-            sect_list.push_back(sect);
         }
     }
-
-    // get all symbols in a file and sort them in sects
-    bool aux = true;
-    for (const auto& s : symbol_list)
+    document_symbol_list_s result;
+    for (const auto& [id,sym] : symbol_list)
     {
-        if (s.second.proc_stack().at(s.second.proc_stack().size()-1).proc_location.file == file->first
-            && s.second.attributes().origin != context::symbol_origin::SECT)
+        if (sym.symbol_location.file == document_uri)
         {
-            for (auto& sect : sect_list)
+            if (sym.attributes().origin != context::symbol_origin::SECT)
             {
-                if (is_in_sect(sect, s.second.symbol_location.pos.line))
+                if (sym.value().value_kind() == context::symbol_value_kind::ABS)
                 {
-                    sect.children.emplace_back(document_symbol_item_s{s.first, 
-                                       document_symbol_item_kind_mapping_symbol.at(s.second.attributes().origin), 
-                                       {s.second.symbol_location.pos, s.second.symbol_location.pos}});
-                    aux = false;
-                    break;
+                    const position& pos = sym.proc_stack()[sym.proc_stack().size()-1].proc_location.pos;
+                    result.emplace_back(document_symbol_item_s{
+                        id,
+                        document_symbol_item_kind_mapping_symbol.at(sym.attributes().origin),
+                        {pos,pos}});
+                }
+                if (sym.value().value_kind() == context::symbol_value_kind::RELOC)
+                {
+                    const position& pos = sym.proc_stack()[sym.proc_stack().size()-1].proc_location.pos;
+                    if (sect_list.find(sym.value().get_reloc().bases()[0].first.owner) != sect_list.end())
+                    {
+                        sect_list.find(sym.value().get_reloc().bases()[0].first.owner)->second.emplace_back(document_symbol_item_s{
+                            id,
+                            document_symbol_item_kind_mapping_symbol.at(sym.attributes().origin),
+                            {pos,pos}});
+                    }
+                    else
+                    {
+                        result.emplace_back(document_symbol_item_s{
+                            id,
+                            document_symbol_item_kind_mapping_symbol.at(sym.attributes().origin),
+                            {pos,pos}});
+                    }
                 }
             }
-            if (aux)
-            {
-                result.emplace_back(document_symbol_item_s{s.first, 
-                                        document_symbol_item_kind_mapping_symbol.at(s.second.attributes().origin), 
-                                        {s.second.symbol_location.pos, s.second.symbol_location.pos}});
-            }
-            aux = true;
         }
     }
-
-    // get all variable symbols
-    // in a minute we will be sorting them in sects
-    // now, I did not use opencode_->variable_definitions, because variables from macros are not there
-    document_symbol_list_s variable_list;
-    for (const auto& occ : occurence_list)
+    for (const auto& [sect,sect_symbols] : sect_list)
     {
-        if (occ.kind == occurence_kind::VAR || occ.kind == occurence_kind::SEQ)
-        {
-            position aux = definition(document_uri, occ.occurence_range.start).pos;
-            variable_list.emplace_back(document_symbol_item_s{occ.name, document_symbol_item_kind_mapping_macro.at(occ.kind), 
-                {aux, {aux.line, aux.column+occ.occurence_range.end.column-occ.occurence_range.start.column}}});
-        }
+        const auto& pos = opencode_->hlasm_ctx.ord_ctx.get_symbol(sect->name)->proc_stack()[opencode_->hlasm_ctx.ord_ctx.get_symbol(sect->name)->proc_stack().size()-1].proc_location.pos;
+        result.emplace_back(document_symbol_item_s{
+            sect->name,
+            document_symbol_item_kind_mapping_section.at(sect->kind),
+            {pos,pos},
+            sect_symbols});
     }
-    std::set<document_symbol_item_s> my_set(variable_list.begin(), variable_list.end());
-    variable_list.assign(my_set.begin(), my_set.end());
-    
-    // sort variable symbols in sects
-    aux = true;
-    for (const auto& variable : variable_list)
-    {
-            for (auto& sect : sect_list)
-            {
-                if (is_in_sect(sect, variable.symbol_range.start.line))
-                {
-                    sect.children.push_back(variable);
-                    aux = false;
-                    break;
-                }
-            }
-            if (aux)
-            {
-                result.push_back(variable);
-            }
-            aux = true;
-    }
-
-    // combines sects with symbols that do not belong to any sect and return the result
-    result.insert(result.end(),sect_list.begin(),sect_list.end());
     return result;
 }
 
 document_symbol_list_s lsp_context::document_symbol(const std::string& document_uri) const
 {
-    // find current file and get all occurences
-    auto file = files_.find(document_uri);
-    const auto& occurence_list = file->second->get_occurences();
-    // if file is macro
-    // IIRC in macro we want to only see variable and sequence symbols, right?
-    // cannot use opencode_->variable_definitions, since it is only for opencode, so did it this way
+    const auto& file = files_.find(document_uri);
     if (file->second->type == file_type::MACRO)
     {
+        document_symbol_list_s result;
+        for (const auto& [def,info] : macros_)
+        {
+            if (def->definition_location.file == document_uri)
+            {
+                for (const auto& var : info->var_definitions)
+                {
+                    result.emplace_back(document_symbol_item_s{
+                        var.name,
+                        document_symbol_kind::VAR,
+                        {var.def_position,var.def_position}});
+                }
+                for (const auto& [name,seq] : def->labels)
+                {
+                    result.emplace_back(document_symbol_item_s{
+                        name,
+                        document_symbol_kind::SEQ,
+                        {seq->symbol_location.pos,seq->symbol_location.pos}});
+                }
+                return result;
+            }
+        }
+        return result;
+    }
+
+    if (file->second->type == file_type::COPY)
+    {
+        const auto& occurence_list = file->second->get_occurences();
         document_symbol_list_s result;
         for (const auto& occ : occurence_list)
         {
@@ -212,47 +168,24 @@ document_symbol_list_s lsp_context::document_symbol(const std::string& document_
         return result;
     }
 
-    // if file is opencode
-    // first get all symbols in the file
-    // the symbols are already sorted in sects
-    document_symbol_list_s result = document_symbol_file(file->first);
-
-    // now check all macros and get all symbols from them
-    // for now I check all occurences for all macros and make a node containing their symbols for each of them
-    // the problem is, that as the id_index for the macro symbol_occurence is nullptr
-    // so in order to get its name, I have to use the function hover
-    // I believe there must be better way to do it, but I sure have not found it.
-    for (const auto& i : macros_)
-    {   
-        std::string path = i.first->definition_location.file;
-        context::id_index label = i.first->id;
-        document_symbol_list_s macro_symbol_list = document_symbol_file(path);
-        for (const auto& occ : occurence_list)
+    document_symbol_list_s result = document_symbol_file(document_uri);
+    std::map<std::string, document_symbol_list_s> macro_copy = document_symbol_macro_copy();
+    for (const auto& i : file->second->get_occurences())
+    {
+        if (i.opcode != nullptr)
         {
-            if (occ.name == nullptr && hover(document_uri,occ.occurence_range.start).find(" "+(*label)+" ") != std::string::npos)
-            {
-                // adjust location of macros' children
-                for (auto& s : macro_symbol_list)
-                {
-                    s.symbol_range = occ.occurence_range;
-                    s.symbol_selection_range = occ.occurence_range;
-                }
-                result.emplace_back(document_symbol_item_s{label,document_symbol_kind::MACRO,occ.occurence_range,macro_symbol_list});
-            }
+            if (macro_copy.find(i.opcode->definition_location.file) != macro_copy.end())
+            result.emplace_back(document_symbol_item_s{
+                i.opcode->id,
+                document_symbol_kind::MACRO,
+                i.occurence_range,
+                macro_copy.find(i.opcode->definition_location.file)->second});
         }
     }
-
+    
     return result;
 
-    // TODO:
-    // Are there any special instructions for sects?
-    // what if macro is inside a sect, do I give the macro node under the sect?
-    //      if yes, then what if the macro has a sect inside it? 
-    //          Will the new sect also be under the old sect?
-    //          Will the old sect stop, the sect inside macro start and take over? Will the sect inside macro end with the macro? Will then the old sect continue?
-    //          Or will the program just collapse?
-    // what if I have macro inside macro?
-    // what about the COPY file_type?
+   
 }
 
 void lsp_context::add_file(file_info file_i)

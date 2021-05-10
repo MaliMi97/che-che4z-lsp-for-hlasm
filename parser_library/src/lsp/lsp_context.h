@@ -73,6 +73,7 @@ private:
     std::string get_macro_documentation(const macro_info& m) const;
 
     document_symbol_list_s document_symbol_file(const std::string& document_uri) const;
+    std::map<std::string, document_symbol_list_s> document_symbol_macro_copy() const;
 };
 
 } // namespace hlasm_plugin::parser_library::lsp
