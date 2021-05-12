@@ -44,148 +44,347 @@ const std::unordered_map<occurence_kind,document_symbol_kind> document_symbol_it
     { occurence_kind::SEQ, document_symbol_kind::SEQ }
 };
 
-
-std::map<std::string, document_symbol_list_s> lsp_context::document_symbol_macro_copy() const
+// this operator is needed for document_symbol_copy function
+bool operator<(const document_symbol_item_s& lhs, const document_symbol_item_s& rhs)
 {
-    std::map<std::string, document_symbol_list_s> result;
-    for (const auto& [name,info] : files_)
-    {
-        if (info->type != file_type::OPENCODE)
-        {
-            result.insert({name, document_symbol_file(name)});
-        }
-    }
-    return result;
+    return *(lhs.name) < *(rhs.name);
 }
 
-document_symbol_list_s lsp_context::document_symbol_file(const std::string& document_uri) const
+// this operator is needed for std::find function
+bool operator==(const document_symbol_item_s& lhs, const document_symbol_item_s& rhs)
 {
-    std::map<const context::section*, document_symbol_list_s> sect_list;
-    const auto& symbol_list = opencode_->hlasm_ctx.ord_ctx.symbols();
-    for (const auto& [id,sym] : symbol_list)
-    {
-        if (sym.symbol_location.file == document_uri)
-        {
-            if (sym.attributes().origin == context::symbol_origin::SECT)
-            {
-                sect_list.insert({opencode_->hlasm_ctx.ord_ctx.get_section(id), {}});
-            }
-        }
-    }
-    document_symbol_list_s result;
-    for (const auto& [id,sym] : symbol_list)
-    {
-        if (sym.symbol_location.file == document_uri)
-        {
-            if (sym.attributes().origin != context::symbol_origin::SECT)
-            {
-                if (sym.value().value_kind() == context::symbol_value_kind::ABS)
-                {
-                    const position& pos = sym.proc_stack()[sym.proc_stack().size()-1].proc_location.pos;
-                    result.emplace_back(document_symbol_item_s{
-                        id,
-                        document_symbol_item_kind_mapping_symbol.at(sym.attributes().origin),
-                        {pos,pos}});
-                }
-                if (sym.value().value_kind() == context::symbol_value_kind::RELOC)
-                {
-                    const position& pos = sym.proc_stack()[sym.proc_stack().size()-1].proc_location.pos;
-                    if (sect_list.find(sym.value().get_reloc().bases()[0].first.owner) != sect_list.end())
-                    {
-                        sect_list.find(sym.value().get_reloc().bases()[0].first.owner)->second.emplace_back(document_symbol_item_s{
-                            id,
-                            document_symbol_item_kind_mapping_symbol.at(sym.attributes().origin),
-                            {pos,pos}});
-                    }
-                    else
-                    {
-                        result.emplace_back(document_symbol_item_s{
-                            id,
-                            document_symbol_item_kind_mapping_symbol.at(sym.attributes().origin),
-                            {pos,pos}});
-                    }
-                }
-            }
-        }
-    }
-    for (const auto& [sect,sect_symbols] : sect_list)
-    {
-        const auto& pos = opencode_->hlasm_ctx.ord_ctx.get_symbol(sect->name)->proc_stack()[opencode_->hlasm_ctx.ord_ctx.get_symbol(sect->name)->proc_stack().size()-1].proc_location.pos;
-        result.emplace_back(document_symbol_item_s{
-            sect->name,
-            document_symbol_item_kind_mapping_section.at(sect->kind),
-            {pos,pos},
-            sect_symbols});
-    }
-    return result;
+    return *(lhs.name) == *(rhs.name) && 
+                lhs.kind == rhs.kind && 
+                lhs.symbol_range == rhs.symbol_range && 
+                lhs.symbol_selection_range == rhs.symbol_selection_range;
 }
 
-document_symbol_list_s lsp_context::document_symbol(const std::string& document_uri) const
+// finds id of MACRO and COPY files
+context::id_index lsp_context::find_id_by_uri(const std::string& document_uri) const
 {
     const auto& file = files_.find(document_uri);
     if (file->second->type == file_type::MACRO)
     {
-        document_symbol_list_s result;
-        for (const auto& [def,info] : macros_)
-        {
-            if (def->definition_location.file == document_uri)
-            {
-                for (const auto& var : info->var_definitions)
-                {
-                    result.emplace_back(document_symbol_item_s{
-                        var.name,
-                        document_symbol_kind::VAR,
-                        {var.def_position,var.def_position}});
-                }
-                for (const auto& [name,seq] : def->labels)
-                {
-                    result.emplace_back(document_symbol_item_s{
-                        name,
-                        document_symbol_kind::SEQ,
-                        {seq->symbol_location.pos,seq->symbol_location.pos}});
-                }
-                return result;
-            }
-        }
-        return result;
+        return std::get<context::macro_def_ptr>(file->second->owner)->id;
     }
-
     if (file->second->type == file_type::COPY)
     {
-        const auto& occurence_list = file->second->get_occurences();
-        document_symbol_list_s result;
-        for (const auto& occ : occurence_list)
+        return std::get<context::copy_member_ptr>(file->second->owner)->name;
+    }
+    return &document_uri;
+}
+
+// if the file we are viewing is MACRO, this function is used
+document_symbol_list_s lsp_context::document_symbol_macro(const std::string& document_uri) const
+{
+    document_symbol_list_s result;
+    for (const auto& [def,info] : macros_)
+    {
+        if (def->definition_location.file == document_uri)
         {
-            if (occ.kind == occurence_kind::VAR || occ.kind == occurence_kind::SEQ)
+            for (const auto& var : info->var_definitions)
             {
-                position aux = definition(document_uri, occ.occurence_range.start).pos;
-                result.emplace_back(document_symbol_item_s{occ.name, document_symbol_item_kind_mapping_macro.at(occ.kind), 
-                    {aux, {aux.line, aux.column+occ.occurence_range.end.column-occ.occurence_range.start.column}}});
+                result.emplace_back(document_symbol_item_s{
+                    var.name,
+                    document_symbol_kind::VAR,
+                    {var.def_position,var.def_position}});
+            }
+            for (const auto& [name,seq] : def->labels)
+            {
+                result.emplace_back(document_symbol_item_s{
+                    name,
+                    document_symbol_kind::SEQ,
+                    {seq->symbol_location.pos,seq->symbol_location.pos}});
+            }
+            return result;
+        }
+    }
+    return result;
+}
+
+// this function is used in document_symbol_symbol function to add variable symbols of macros to outline and give them correct position
+document_symbol_list_s lsp_context::document_symbol_macro(const std::string& document_uri, const range& r) const
+{
+    document_symbol_list_s result;
+    for (const auto& [def,info] : macros_)
+    {
+        if (def->definition_location.file == document_uri)
+        {
+            for (const auto& var : info->var_definitions)
+            {
+                result.emplace_back(document_symbol_item_s{
+                    var.name,
+                    document_symbol_kind::VAR,
+                    r});
+            }
+            for (const auto& [name,seq] : def->labels)
+            {
+                result.emplace_back(document_symbol_item_s{
+                    name,
+                    document_symbol_kind::SEQ,
+                    r});
+            }
+            return result;
+        }
+    }
+    return result;
+}
+
+// if the file we are viewing is COPY, this function is used
+// If I am not wrong, then the variable and seuqnce symbols of COPY file are included in variable and sequence szmbols of the file that
+// uses the copy instruction
+// So I did it this way for now, though as you have already said, there are some faults in it.
+document_symbol_list_s lsp_context::document_symbol_copy(const std::vector<symbol_occurence> occurence_list, const std::string& document_uri) const
+{
+    document_symbol_list_s result;
+    for (const auto& occ : occurence_list)
+    {
+        if (occ.kind == occurence_kind::VAR || occ.kind == occurence_kind::SEQ)
+        {
+            position aux = definition(document_uri, occ.occurence_range.start).pos;
+            result.emplace_back(document_symbol_item_s{occ.name, document_symbol_item_kind_mapping_macro.at(occ.kind), 
+                {aux, {aux.line, aux.column+occ.occurence_range.end.column-occ.occurence_range.start.column}}});
+        }
+    }
+    std::set<document_symbol_item_s> s(result.begin(), result.end());
+    result.assign(s.begin(), s.end());
+    return result;
+}
+
+// is used for checking whether symbol belonging to a sect is defined in the same file as the sect
+bool compare_stacks(const context::processing_stack_t& lhs, const context::processing_stack_t& rhs)
+{
+    if (lhs.size() == 1)
+    {
+        return true;
+    }
+    if (lhs.size() < rhs.size())
+    {
+        return false;
+    }
+    for (int i = 0; i < lhs.size(); i++)
+    {
+        if (lhs[i].proc_location.file != rhs[i].proc_location.file)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+// this function does most of the heavy lifting, in the document_symbol function we are basically only calling this function and
+// taking care of special cases
+// The parametres of this function:
+// modified - the function is modifying this variable
+// children - the children of ord symbol, is {} if the symbol is not a sect
+// id - pointer to name of the symbol
+// sym - the symbol
+// kind - document_symbol_kind of the symbol, need to have it as a parameter, because the document_symbol_symbol function is being used for
+//          both absolute, resp. relocate symbols and sects
+// i - at what place in processing_stack we are starting the process. i >= 1.
+// macro - whether we want to add variable and sequence symbols to macros or not
+void lsp_context::document_symbol_symbol(document_symbol_list_s& modified, 
+                                            const document_symbol_list_s& children, 
+                                            const context::id_index& id, 
+                                            const context::symbol& sym, 
+                                            document_symbol_kind kind,
+                                            int i,
+                                            const bool macro) const
+{
+    // makes the first macro in symbols processing_stack into document_symbol_item
+    document_symbol_item_s aux = {
+        find_id_by_uri(sym.proc_stack()[i].proc_location.file),
+        document_symbol_kind::MACRO,
+        {sym.proc_stack()[0].proc_location.pos,sym.proc_stack()[0].proc_location.pos},
+        document_symbol_list_s{}
+    };
+    // checks whether we do not have it as a node already
+    // if yes, then we get position, if not then if condition is called
+    auto i_find = std::find(modified.begin(),modified.end(),aux);
+    if (i_find == modified.end())
+    {
+        // because it is the first time we see this node, we might want to add variable and sequence symbols
+        if (macro)
+        {
+            const auto& file = files_.find(sym.proc_stack()[i].proc_location.file);
+            if (file->second->type == file_type::MACRO)
+            {
+                aux.children = document_symbol_macro(file->first, aux.symbol_range);
             }
         }
-        std::set<document_symbol_item_s> s(result.begin(), result.end());
-        result.assign(s.begin(), s.end());
-        return result;
+        // add the new node to modified and correct i_find
+        modified.push_back(aux);
+        i_find = modified.end()-1;
+    }
+    // increase i in order to look for the next node
+    i++;
+    // now we do basically the same thing till the end of prock_stack
+    while (i < sym.proc_stack().size())
+    {
+        // adjust the name of document_symbol_item to that of the next node
+        aux.name = find_id_by_uri(sym.proc_stack()[i].proc_location.file);
+        // make a pointer to the children of the last node
+        document_symbol_list_s* aux_list = &i_find->children;
+        // if it does not have any children, add the first one
+        if (aux_list->empty())
+        {
+            aux_list->push_back(aux);
+            i_find = aux_list->begin();
+        }
+        // if it does have children, then try to find the node and create it, if it is missing
+        else
+        {
+            i_find = std::find(aux_list->begin(),aux_list->end(),aux);
+            if (i_find == aux_list->end())
+            {
+                aux_list->push_back(aux);
+                i_find = aux_list->end()-1;
+            }
+        }
+        i++;
+    }
+    // now aux_list points to the end of the hierarchy and we can add symbol
+    document_symbol_list_s* aux_list = &i_find->children;
+    aux_list->emplace_back(document_symbol_item_s{
+        id,
+        kind,
+        i_find->symbol_range,
+        children});
+}
+
+// the actual function which is being used for response to the DocumentSymbol request
+document_symbol_list_s lsp_context::document_symbol(const std::string& document_uri) const
+{
+    // checks if the file is MACRO or COPY
+    const auto& file = files_.find(document_uri);
+    if (file->second->type == file_type::MACRO)
+    {
+        return document_symbol_macro(document_uri);
+    }
+    if (file->second->type == file_type::COPY)
+    {
+        return document_symbol_copy(file->second->get_occurences(), document_uri);
     }
 
-    document_symbol_list_s result = document_symbol_file(document_uri);
-    std::map<std::string, document_symbol_list_s> macro_copy = document_symbol_macro_copy();
-    for (const auto& i : file->second->get_occurences())
+    // if the file is OPENCODE, then first gather all SECTs in code and put them in map empty document_symbols_list_s
+    // later we will fill the document_symbols_list_s with SECTs' children
+    const auto& symbol_list = opencode_->hlasm_ctx.ord_ctx.symbols();
+    std::map<const context::section*, document_symbol_list_s> children_of_sects;
+    for (const auto& [id,sym] : symbol_list)
     {
-        if (i.opcode != nullptr)
+        if (sym.attributes().origin == context::symbol_origin::SECT)
         {
-            if (macro_copy.find(i.opcode->definition_location.file) != macro_copy.end())
-            result.emplace_back(document_symbol_item_s{
-                i.opcode->id,
-                document_symbol_kind::MACRO,
-                i.occurence_range,
-                macro_copy.find(i.opcode->definition_location.file)->second});
+            children_of_sects.insert({opencode_->hlasm_ctx.ord_ctx.get_section(id),{}});
         }
     }
-    
+
+    // we will be returning result at the end of the function
+    document_symbol_list_s result;
+    for (const auto& [id,sym] : symbol_list)
+    {
+        // if the symbol is neither RELOC nor SECT
+        if (sym.value().value_kind() == context::symbol_value_kind::RELOC)
+        {
+            if (sym.attributes().origin != context::symbol_origin::SECT)
+            {
+                // get owner of the SECT and if it does not have one, add it to result
+                const auto& sect = sym.value().get_reloc().bases()[0].first.owner;
+                if (children_of_sects.find(sect) == children_of_sects.end())
+                {
+                    result.emplace_back(document_symbol_item_s{
+                        id,
+                        document_symbol_item_kind_mapping_symbol.at(sym.attributes().origin),
+                        {sym.symbol_location.pos,sym.symbol_location.pos}});
+                    continue;
+                }
+
+                const auto& sect_sym = opencode_->hlasm_ctx.ord_ctx.get_symbol(sect->name);
+                auto& children = children_of_sects.find(sect)->second;
+                // compare symbol's stack with SECT's stack and add it to result if it is false
+                if (compare_stacks(sym.proc_stack(), sect_sym->proc_stack()))
+                {
+                    children.emplace_back(document_symbol_item_s{
+                        id,
+                        document_symbol_item_kind_mapping_symbol.at(sym.attributes().origin),
+                        {sym.proc_stack()[0].proc_location.pos,sym.proc_stack()[0].proc_location.pos}});
+                    continue;
+                }
+                // get the starting position
+                // by the starting position we mean the point in processing_stacks, where the hierarchy in outline will
+                // start to differ
+                int i = 1;
+                while (sym.proc_stack()[i].proc_location.file == sect_sym->proc_stack()[i].proc_location.file
+                        && sym.proc_stack()[i].proc_location.pos == sect_sym->proc_stack()[i].proc_location.pos)
+                {
+                    i++;
+                }
+                document_symbol_symbol(children, 
+                                        document_symbol_list_s{}, 
+                                        id, 
+                                        sym, 
+                                        document_symbol_item_kind_mapping_symbol.at(sym.attributes().origin),
+                                        i,
+                                        false);
+            }
+        }
+        // if sym is ABS, then we add it to the result if the starting position is 0
+        // and if it is not 0, then it is equal to 1
+        if (sym.value().value_kind() == context::symbol_value_kind::ABS)
+        {
+            if (sym.proc_stack().size() == 1)
+            {
+                result.emplace_back(document_symbol_item_s{
+                    id,
+                    document_symbol_item_kind_mapping_symbol.at(sym.attributes().origin),
+                    {sym.symbol_location.pos,sym.symbol_location.pos}});
+                continue;
+            }
+            document_symbol_symbol(result,
+                                    document_symbol_list_s{}, 
+                                    id, 
+                                    sym, 
+                                    document_symbol_item_kind_mapping_symbol.at(sym.attributes().origin),
+                                    1,
+                                    true);
+        }
+    }
+    // in similar fashion as ABS, we do SECTs
+    // just that we add their children
+    for (const auto& [sect,children] : children_of_sects)
+    {
+        const auto& sym = *opencode_->hlasm_ctx.ord_ctx.get_symbol(sect->name);
+        if (sym.proc_stack().size() == 1)
+        {
+            result.emplace_back(document_symbol_item_s{
+                sect->name,
+                document_symbol_item_kind_mapping_section.at(sect->kind),
+                {sym.symbol_location.pos,sym.symbol_location.pos},
+                children});
+            continue;
+        }
+        document_symbol_symbol(result, 
+                                children, sect->name, 
+                                sym, 
+                                document_symbol_item_kind_mapping_section.at(sect->kind),
+                                1,
+                                true);
+    }
+    // lastly we add variable symbols to the macro
+    for (const auto sym : opencode_->variable_definitions)
+    {
+        result.emplace_back(document_symbol_item_s{
+            sym.name,
+            document_symbol_kind::VAR,
+            {sym.def_position,sym.def_position}
+        });
+    }
     return result;
 
-   
+    //TODO:
+    // - If MACRO does not have ordinary symbol inside, it is being ignored. If we do not want to ignore it, then we need to
+    // somehow get for them something similar to processing_stack of ordinary symbols.
+    // - The variable and sequence symbols from copy file have their position wrong.
+    // - Better way to do the COPY file, I guess.
 }
 
 void lsp_context::add_file(file_info file_i)

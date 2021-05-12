@@ -72,8 +72,17 @@ private:
     bool should_complete_instr(const text_data_ref_t& text, const position pos) const;
     std::string get_macro_documentation(const macro_info& m) const;
 
-    document_symbol_list_s document_symbol_file(const std::string& document_uri) const;
-    std::map<std::string, document_symbol_list_s> document_symbol_macro_copy() const;
+    document_symbol_list_s document_symbol_macro(const std::string& document_uri) const;
+    document_symbol_list_s document_symbol_macro(const std::string& document_uri, const range& r) const;
+    document_symbol_list_s document_symbol_copy(const std::vector<symbol_occurence> occurence_list, const std::string& document_uri) const;
+    context::id_index find_id_by_uri(const std::string& document_uri) const;
+    void document_symbol_symbol(document_symbol_list_s& modified, 
+                                    const document_symbol_list_s& children, 
+                                    const context::id_index& id, 
+                                    const context::symbol& sym,
+                                    const document_symbol_kind kind,
+                                    int i,
+                                    const bool macro) const;
 };
 
 } // namespace hlasm_plugin::parser_library::lsp
