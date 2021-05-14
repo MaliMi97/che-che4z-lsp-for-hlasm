@@ -60,18 +60,29 @@ bool operator==(const document_symbol_item_s& lhs, const document_symbol_item_s&
 }
 
 // finds id of MACRO and COPY files
-context::id_index lsp_context::find_id_by_uri(const std::string& document_uri) const
+context::id_index lsp_context::find_macro_copy_id(const context::processing_stack_t& stack, int i) const
 {
-    const auto& file = files_.find(document_uri);
-    if (file->second->type == file_type::MACRO)
+    const auto& file = files_.find(stack[i].proc_location.file);
+    context::id_index name = nullptr;
+    if (file != files_.end())
     {
-        return std::get<context::macro_def_ptr>(file->second->owner)->id;
+        if (file->second->type == file_type::OPENCODE)
+        {
+            const location& loc = stack[i-1].proc_location;
+            name = find_occurence_with_scope(loc.file, loc.pos).first->name;
+        }
+        if (file->second->type == file_type::MACRO)
+        {
+            // cannot do the same as in OPENCODE since if the id_index of occurences of MACROs in the opencode is nullptr
+            name = std::get<context::macro_def_ptr>(file->second->owner)->id;
+        }
+        if (file->second->type == file_type::COPY)
+        {
+            name = std::get<context::copy_member_ptr>(file->second->owner)->name;
+        }
     }
-    if (file->second->type == file_type::COPY)
-    {
-        return std::get<context::copy_member_ptr>(file->second->owner)->name;
-    }
-    return &document_uri;
+    // if by any chance we could not find a name, we return this in order to stop the plugin from crashing
+    return name != nullptr ? name : &stack[i].proc_location.file;
 }
 
 // if the file we are viewing is MACRO, this function is used
@@ -162,7 +173,7 @@ bool compare_stacks(const context::processing_stack_t& lhs, const context::proce
     {
         return false;
     }
-    for (int i = 0; i < lhs.size(); i++)
+    for (unsigned long i = 0; i < lhs.size(); i++)
     {
         if (lhs[i].proc_location.file != rhs[i].proc_location.file)
         {
@@ -188,20 +199,19 @@ void lsp_context::document_symbol_symbol(document_symbol_list_s& modified,
                                             const context::id_index& id, 
                                             const context::symbol& sym, 
                                             document_symbol_kind kind,
-                                            int i,
+                                            unsigned long i,
                                             const bool macro) const
 {
     // makes the first macro in symbols processing_stack into document_symbol_item
     document_symbol_item_s aux = {
-        find_id_by_uri(sym.proc_stack()[i].proc_location.file),
+        find_macro_copy_id(sym.proc_stack(), i),
         document_symbol_kind::MACRO,
         {sym.proc_stack()[0].proc_location.pos,sym.proc_stack()[0].proc_location.pos},
         document_symbol_list_s{}
     };
-    // checks whether we do not have it as a node already
-    // if yes, then we get position, if not then if condition is called
-    auto i_find = std::find(modified.begin(),modified.end(),aux);
-    if (i_find == modified.end())
+    // checks whether modified is empty
+    auto i_find = modified.begin();
+    if (modified.empty())
     {
         // because it is the first time we see this node, we might want to add variable and sequence symbols
         if (macro)
@@ -212,9 +222,29 @@ void lsp_context::document_symbol_symbol(document_symbol_list_s& modified,
                 aux.children = document_symbol_macro(file->first, aux.symbol_range);
             }
         }
-        // add the new node to modified and correct i_find
         modified.push_back(aux);
         i_find = modified.end()-1;
+    }
+    else
+    {
+        // checks whether we do not have it as a node already
+        // if yes, then we get position, if not then if condition is called
+        i_find = std::find(modified.begin(),modified.end(),aux);
+        if (i_find == modified.end())
+        {
+            // because it is the first time we see this node, we might want to add variable and sequence symbols
+            if (macro)
+            {
+                const auto& file = files_.find(sym.proc_stack()[i].proc_location.file);
+                if (file->second->type == file_type::MACRO)
+                {
+                    aux.children = document_symbol_macro(file->first, aux.symbol_range);
+                }
+            }
+            // add the new node to modified and correct i_find
+            modified.push_back(aux);
+            i_find = modified.end()-1;
+        }
     }
     // increase i in order to look for the next node
     i++;
@@ -222,7 +252,7 @@ void lsp_context::document_symbol_symbol(document_symbol_list_s& modified,
     while (i < sym.proc_stack().size())
     {
         // adjust the name of document_symbol_item to that of the next node
-        aux.name = find_id_by_uri(sym.proc_stack()[i].proc_location.file);
+        aux.name = find_macro_copy_id(sym.proc_stack(), i);
         // make a pointer to the children of the last node
         document_symbol_list_s* aux_list = &i_find->children;
         // if it does not have any children, add the first one
@@ -249,23 +279,27 @@ void lsp_context::document_symbol_symbol(document_symbol_list_s& modified,
         id,
         kind,
         i_find->symbol_range,
-        children});
+        children}); 
 }
 
 // the actual function which is being used for response to the DocumentSymbol request
 document_symbol_list_s lsp_context::document_symbol(const std::string& document_uri) const
 {
+    document_symbol_list_s result;
     // checks if the file is MACRO or COPY
     const auto& file = files_.find(document_uri);
-    if (file->second->type == file_type::MACRO)
+    // if the file could not be found, return empty list
+    if (file != files_.end())
     {
-        return document_symbol_macro(document_uri);
+        if (file->second->type == file_type::MACRO)
+        {
+            return document_symbol_macro(document_uri);
+        }
+        if (file->second->type == file_type::COPY)
+        {
+            return document_symbol_copy(file->second->get_occurences(), document_uri);
+        }
     }
-    if (file->second->type == file_type::COPY)
-    {
-        return document_symbol_copy(file->second->get_occurences(), document_uri);
-    }
-
     // if the file is OPENCODE, then first gather all SECTs in code and put them in map empty document_symbols_list_s
     // later we will fill the document_symbols_list_s with SECTs' children
     const auto& symbol_list = opencode_->hlasm_ctx.ord_ctx.symbols();
@@ -278,8 +312,6 @@ document_symbol_list_s lsp_context::document_symbol(const std::string& document_
         }
     }
 
-    // we will be returning result at the end of the function
-    document_symbol_list_s result;
     for (const auto& [id,sym] : symbol_list)
     {
         // if the symbol is neither RELOC nor SECT
@@ -367,7 +399,7 @@ document_symbol_list_s lsp_context::document_symbol(const std::string& document_
                                 sym, 
                                 document_symbol_item_kind_mapping_section.at(sect->kind),
                                 1,
-                                true);
+                                false);
     }
     // lastly we add variable symbols to the macro
     for (const auto sym : opencode_->variable_definitions)

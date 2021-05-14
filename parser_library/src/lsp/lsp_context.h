@@ -75,13 +75,13 @@ private:
     document_symbol_list_s document_symbol_macro(const std::string& document_uri) const;
     document_symbol_list_s document_symbol_macro(const std::string& document_uri, const range& r) const;
     document_symbol_list_s document_symbol_copy(const std::vector<symbol_occurence> occurence_list, const std::string& document_uri) const;
-    context::id_index find_id_by_uri(const std::string& document_uri) const;
+    context::id_index find_macro_copy_id(const context::processing_stack_t& stack, int i) const;
     void document_symbol_symbol(document_symbol_list_s& modified, 
                                     const document_symbol_list_s& children, 
                                     const context::id_index& id, 
                                     const context::symbol& sym,
                                     const document_symbol_kind kind,
-                                    int i,
+                                    unsigned long i,
                                     const bool macro) const;
 };
 
