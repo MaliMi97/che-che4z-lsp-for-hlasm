@@ -163,24 +163,23 @@ document_symbol_list_s lsp_context::document_symbol_copy(const std::vector<symbo
 }
 
 // is used for checking whether symbol belonging to a sect is defined in the same file as the sect
-bool compare_stacks(const context::processing_stack_t& lhs, const context::processing_stack_t& rhs)
+bool compare_stacks(const context::processing_stack_t& lhs, const context::processing_stack_t& rhs, unsigned long& i)
 {
     if (lhs.size() == 1)
     {
         return true;
     }
-    if (lhs.size() < rhs.size())
+    unsigned long size = lhs.size() < rhs.size() ? lhs.size() : rhs.size();
+    for (i = 1; i < size; i++)
     {
-        return false;
-    }
-    for (unsigned long i = 0; i < lhs.size(); i++)
-    {
-        if (lhs[i].proc_location.file != rhs[i].proc_location.file)
+        if (lhs[i].proc_location.file != rhs[i].proc_location.file
+                        || lhs[i].proc_location.pos != rhs[i].proc_location.pos)
         {
-            return false;
+            i--;
+            return i+2 == lhs.size();
         }
     }
-    return true;
+    return false;
 }
 
 // this function does most of the heavy lifting, in the document_symbol function we are basically only calling this function and
@@ -332,23 +331,16 @@ document_symbol_list_s lsp_context::document_symbol(const std::string& document_
 
                 const auto& sect_sym = opencode_->hlasm_ctx.ord_ctx.get_symbol(sect->name);
                 auto& children = children_of_sects.find(sect)->second;
-                // compare symbol's stack with SECT's stack and add it to result if it is false
-                if (compare_stacks(sym.proc_stack(), sect_sym->proc_stack()))
+                // compare symbol's stack with SECT's stack and add it to children if it is true
+                // the function modifies i
+                unsigned long i = 1;
+                if (compare_stacks(sym.proc_stack(), sect_sym->proc_stack(),i))
                 {
                     children.emplace_back(document_symbol_item_s{
                         id,
                         document_symbol_item_kind_mapping_symbol.at(sym.attributes().origin),
                         {sym.proc_stack()[0].proc_location.pos,sym.proc_stack()[0].proc_location.pos}});
                     continue;
-                }
-                // get the starting position
-                // by the starting position we mean the point in processing_stacks, where the hierarchy in outline will
-                // start to differ
-                int i = 1;
-                while (sym.proc_stack()[i].proc_location.file == sect_sym->proc_stack()[i].proc_location.file
-                        && sym.proc_stack()[i].proc_location.pos == sect_sym->proc_stack()[i].proc_location.pos)
-                {
-                    i++;
                 }
                 document_symbol_symbol(children, 
                                         document_symbol_list_s{}, 
