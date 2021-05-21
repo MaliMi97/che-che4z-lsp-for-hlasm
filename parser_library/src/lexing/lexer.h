@@ -30,15 +30,13 @@
 #include "token_factory.h"
 
 
-namespace hlasm_plugin {
-namespace parser_library {
-namespace lexing {
+namespace hlasm_plugin::parser_library::lexing {
 
 class input_source;
 
 using token_ptr = std::unique_ptr<antlr4::Token>;
 using char_t = char32_t;
-class lexer : public antlr4::TokenSource
+class lexer final : public antlr4::TokenSource
 {
 public:
     struct stream_position
@@ -158,7 +156,7 @@ private:
     // positions of the last line
     stream_position last_lln_begin_pos_ = { 0, 0 };
     stream_position last_lln_end_pos_ = { static_cast<size_t>(-1), static_cast<size_t>(-1) };
-    size_t last_line_pos_;
+    size_t last_line_pos_ = 0;
 
     std::queue<token_ptr> token_queue_;
     Ref<antlr4::CommonTokenFactory> dummy_factory;
@@ -239,7 +237,6 @@ private:
 
     bool is_process() const;
 };
-} // namespace lexing
-} // namespace parser_library
-} // namespace hlasm_plugin
+
+} // namespace hlasm_plugin::parser_library::lexing
 #endif

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 Broadcom.
+ * Copyright (c) 2021 Broadcom.
  * The term "Broadcom" refers to Broadcom Inc. and/or its subsidiaries.
  *
  * This program and the accompanying materials are made
@@ -12,29 +12,15 @@
  *   Broadcom, Inc. - initial API and implementation
  */
 
-#ifndef HLASMPLUGIN_PARSER_LIBRARY_H
-#define HLASMPLUGIN_PARSER_LIBRARY_H
+#ifndef HLASMPLUGIN_PARSERLIBRARY_AREAD_TIME_H
+#define HLASMPLUGIN_PARSERLIBRARY_AREAD_TIME_H
 
-// Exports a method that parses a string and writes results to standard output.
-// Used for development purposes only.
-
+#include <chrono>
 #include <string>
 
-#include "antlr4-runtime.h"
-
-#include "parser_library_export.h"
-
-
 namespace hlasm_plugin::parser_library {
-
-class PARSER_LIBRARY_EXPORT parser_library
-{
-public:
-    parser_library() {};
-    void parse(const std::string&);
-};
-
+std::string time_to_clockb(std::chrono::nanoseconds d);
+std::string time_to_clockd(std::chrono::nanoseconds d);
 } // namespace hlasm_plugin::parser_library
 
-
-#endif
+#endif // HLASMPLUGIN_PARSERLIBRARY_AREAD_TIME_H

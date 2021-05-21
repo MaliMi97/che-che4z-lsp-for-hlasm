@@ -67,7 +67,7 @@ public:
     const symbol* get_symbol_reference(context::id_index name) const;
 
     // gets symbol by name
-    virtual const symbol* get_symbol(id_index name) const override;
+    const symbol* get_symbol(id_index name) const override;
     symbol* get_symbol(id_index name);
 
     // gets section by name
@@ -77,7 +77,7 @@ public:
     const section* current_section() const;
 
     // sets current section
-    void set_section(id_index name, const section_kind kind, location symbol_location);
+    void set_section(id_index name, section_kind kind, location symbol_location);
 
     // sets current location counter of current section
     void set_location_counter(id_index name, location symbol_location);
@@ -100,7 +100,7 @@ public:
     // check whether symbol is already defined
     bool symbol_defined(id_index name);
     // check whether section is already defined
-    bool section_defined(id_index name, const section_kind kind);
+    bool section_defined(id_index name, section_kind kind);
     // check whether location counter is already defined
     bool counter_defined(id_index name);
 

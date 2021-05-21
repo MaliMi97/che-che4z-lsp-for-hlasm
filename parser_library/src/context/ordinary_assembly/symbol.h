@@ -23,9 +23,7 @@
 #include "symbol_attributes.h"
 #include "../processing_context.h"
 
-namespace hlasm_plugin {
-namespace parser_library {
-namespace context {
+namespace hlasm_plugin::parser_library::context {
 
 // defines kind of symbol value, absolute or relocatable or undefined
 enum class symbol_value_kind
@@ -89,7 +87,5 @@ private:
     processing_stack_t stack_;
 };
 
-} // namespace context
-} // namespace parser_library
-} // namespace hlasm_plugin
+} // namespace hlasm_plugin::parser_library::context
 #endif

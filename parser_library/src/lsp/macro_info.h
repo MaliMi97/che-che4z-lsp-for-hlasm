@@ -29,12 +29,13 @@ struct variable_symbol_definition
     bool macro_param;
 
     // type of SET symbol
-    context::SET_t_enum type;
+    context::SET_t_enum type = context::SET_t_enum::UNDEF_TYPE;
+
     // flag whether SET symbol is global
-    bool global;
+    bool global = false;
 
     // statement number in macro
-    size_t def_location;
+    size_t def_location = 0;
     // file in opencode
     std::string file;
 

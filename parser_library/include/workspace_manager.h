@@ -31,30 +31,36 @@
 #include "parser_library_export.h"
 #include "protocol.h"
 
-namespace hlasm_plugin {
-namespace parser_library {
+namespace hlasm_plugin::parser_library {
+
 namespace workspaces {
 class workspace;
 class parse_lib_provider;
 } // namespace workspaces
+
 using ws_id = workspaces::workspace*;
 
 // Interface that can be implemented to be able to get list of
 // diagnostics from workspace manager whenever a file is parsed
 // Passes list of all diagnostics that are in all currently opened files.
-class PARSER_LIBRARY_EXPORT diagnostics_consumer
+class diagnostics_consumer
 {
 public:
     virtual void consume_diagnostics(diagnostic_list diagnostics) = 0;
-    virtual ~diagnostics_consumer() {};
+
+protected:
+    ~diagnostics_consumer() = default;
 };
 
 // Interface that can be implemented to be able to get performance metrics
 //(time that parsing took, number of parsed lines, etc)
-class PARSER_LIBRARY_EXPORT performance_metrics_consumer
+class performance_metrics_consumer
 {
 public:
     virtual void consume_performance_metrics(const performance_metrics& metrics) = 0;
+
+protected:
+    ~performance_metrics_consumer() = default;
 };
 
 // The main class that encapsulates all functionality of parser library.
@@ -107,6 +113,6 @@ public:
 private:
     impl* impl_;
 };
-} // namespace parser_library
-} // namespace hlasm_plugin
+
+} // namespace hlasm_plugin::parser_library
 #endif // !HLASMPLUGIN_PARSERLIBRARY_WORKSPACE_MANAGER_H
