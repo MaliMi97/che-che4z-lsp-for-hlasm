@@ -113,27 +113,10 @@ bool operator==(const document_symbol_item_s& lhs, const document_symbol_item_s&
 // finds id of MACRO and COPY files
 context::id_index lsp_context::find_macro_copy_id(const context::processing_stack_t& stack, int i) const
 {
-    const auto& file = files_.find(stack[i].proc_location.file);
-    context::id_index name = nullptr;
-    if (file != files_.end())
-    {
-        if (file->second->type == file_type::OPENCODE)
-        {
-            const location& loc = stack[i-1].proc_location;
-            name = find_occurence_with_scope(loc.file, loc.pos).first->name;
-        }
-        if (file->second->type == file_type::MACRO)
-        {
-            // cannot do the same as in OPENCODE since if the id_index of occurences of MACROs in the opencode is nullptr
-            name = std::get<context::macro_def_ptr>(file->second->owner)->id;
-        }
-        if (file->second->type == file_type::COPY)
-        {
-            name = std::get<context::copy_member_ptr>(file->second->owner)->name;
-        }
-    }
-    // if by any chance we could not find a name, we return this in order to stop the plugin from crashing
-    return name != nullptr ? name : &stack[i].proc_location.file;
+    // I really think this function should contain assert (i !=0), since first frame is always opencode
+    // and it does not make sense to return macro id in that case
+    return stack[i].member_name == opencode_->hlasm_ctx.ids().empty_id ? &stack[i].proc_location.file
+                                                                       : stack[i].member_name;
 }
 
 // if the file we are viewing is MACRO, this function is used
@@ -358,7 +341,10 @@ document_symbol_list_s lsp_context::document_symbol(const std::string& document_
     {
         if (sym.attributes().origin == context::symbol_origin::SECT)
         {
-            children_of_sects.insert({opencode_->hlasm_ctx.ord_ctx.get_section(id),{}});
+            auto sect = opencode_->hlasm_ctx.ord_ctx.get_section(id);
+            if (sect == nullptr)
+                continue;
+            children_of_sects.insert({ sect, {} });
         }
     }
 
