@@ -70,7 +70,11 @@ private:
 
     document_symbol_list_s document_symbol_macro(const std::string& document_uri) const;
     document_symbol_list_s document_symbol_macro(const std::string& document_uri, const range& r) const;
-    document_symbol_list_s document_symbol_copy(const std::vector<symbol_occurence> occurence_list, const std::string& document_uri) const;
+    document_symbol_list_s document_symbol_copy(const std::vector<symbol_occurence> occurence_list, const std::string& document_uri, const range& r) const;
+    std::map<symbol_occurence,std::vector<context::id_index>> copy_occurences(const std::string& document_uri) const;
+    void modify_with_copy(document_symbol_list_s& modified, const context::id_index& sym_name,
+                                    const std::map<symbol_occurence,std::vector<context::id_index>>& copy_occs,
+                                    const document_symbol_kind kind) const;
     context::id_index find_macro_copy_id(const context::processing_stack_t& stack, int i) const;
     void document_symbol_symbol(document_symbol_list_s& modified, 
                                     const document_symbol_list_s& children, 
