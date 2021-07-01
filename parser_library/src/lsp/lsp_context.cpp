@@ -19,9 +19,11 @@
 #include <sstream>
 #include <string_view>
 #include <fstream>
+#include <unordered_map>
 
 #include "context/instruction.h"
 #include "ebcdic_encoding.h"
+//#include "document_symbol_item.h"
 
 namespace hlasm_plugin::parser_library::lsp {
 namespace {
@@ -95,31 +97,12 @@ const std::unordered_map<occurence_kind,document_symbol_kind> document_symbol_it
     { occurence_kind::SEQ, document_symbol_kind::SEQ }
 };
 
-// this operator is needed for document_symbol_copy function
-bool operator<(const document_symbol_item_s& lhs, const document_symbol_item_s& rhs)
-{
-    return *(lhs.name) < *(rhs.name);
-}
-
-bool operator<(const symbol_occurence& lhs, const symbol_occurence& rhs)
-{
-    return *(lhs.name) < *(rhs.name);
-}
-
-// this operator is needed for std::find function
-bool operator==(const document_symbol_item_s& lhs, const document_symbol_item_s& rhs)
-{
-    return *(lhs.name) == *(rhs.name) && 
-                lhs.kind == rhs.kind && 
-                lhs.symbol_range == rhs.symbol_range && 
-                lhs.symbol_selection_range == rhs.symbol_selection_range;
-}
-
 // finds id of MACRO and COPY files
 context::id_index lsp_context::find_macro_copy_id(const context::processing_stack_t& stack, int i) const
 {
     // I really think this function should contain assert (i !=0), since first frame is always opencode
     // and it does not make sense to return macro id in that case
+    assert(i != 0);
     return stack[i].member_name == opencode_->hlasm_ctx.ids().empty_id ? &stack[i].proc_location.file
                                                                        : stack[i].member_name;
 }
@@ -174,7 +157,7 @@ document_symbol_list_s lsp_context::document_symbol_macro(const std::string& doc
 // this function is used in document_symbol_symbol function to add variable symbols of macros to outline and give them correct position
 document_symbol_list_s lsp_context::document_symbol_macro(const std::string& document_uri, const range& r) const
 {
-    const range dummy = {{0,0},{0,0}};
+    auto copy_occs = copy_occurences(document_uri);
     document_symbol_list_s result;
     for (const auto& [def,info] : macros_)
     {
@@ -192,11 +175,8 @@ document_symbol_list_s lsp_context::document_symbol_macro(const std::string& doc
                     var.name,
                     document_symbol_kind::VAR,
                     {var.def_position,var.def_position}});
-                if (r != dummy)
-                {
-                    result.back().symbol_range = r;
-                    result.back().symbol_selection_range = r;
-                }
+                result.back().symbol_range = r;
+                result.back().symbol_selection_range = r;
             }
             for (const auto& [name,seq] : def->labels)
             {
@@ -210,11 +190,8 @@ document_symbol_list_s lsp_context::document_symbol_macro(const std::string& doc
                     name,
                     document_symbol_kind::SEQ,
                     {seq->symbol_location.pos,seq->symbol_location.pos}});
-                if (r != dummy)
-                {
-                    result.back().symbol_range = r;
-                    result.back().symbol_selection_range = r;
-                }
+                result.back().symbol_range = r;
+                result.back().symbol_selection_range = r;
             }
             return result;
         }
@@ -223,36 +200,43 @@ document_symbol_list_s lsp_context::document_symbol_macro(const std::string& doc
 }
 
 // if the file we are viewing is COPY, this function is used
-// If I am not wrong, then the variable and seuqnce symbols of COPY file are included in variable and sequence szmbols of the file that
+// If I am not wrong, then the variable and seuqnce symbols of COPY file are included in variable and sequence symbols of the file that
 // uses the copy instruction
 // So I did it this way for now, though as you have already said, there are some faults in it.
-document_symbol_list_s lsp_context::document_symbol_copy(const std::vector<symbol_occurence> occurence_list, const std::string& document_uri, const range& r) const
+document_symbol_list_s lsp_context::document_symbol_copy(const std::vector<symbol_occurence> occurence_list, const std::string& document_uri) const
 {
-    const range dummy = {{0,0},{0,0}};
     document_symbol_list_s result;
     for (const auto& occ : occurence_list)
     {
         if (occ.kind == occurence_kind::VAR || occ.kind == occurence_kind::SEQ)
         {
             position aux = definition(document_uri, occ.occurence_range.start).pos;
-            result.emplace_back(document_symbol_item_s{occ.name, document_symbol_item_kind_mapping_macro.at(occ.kind), 
-                {aux, {aux.line, aux.column+occ.occurence_range.end.column-occ.occurence_range.start.column}}});
-            if (r != dummy)
+            document_symbol_item_s item = {occ.name, document_symbol_item_kind_mapping_macro.at(occ.kind), 
+                {aux, {aux.line, aux.column+occ.occurence_range.end.column-occ.occurence_range.start.column}}};
+            if (std::find(result.begin(),result.end(),item) == result.end())
             {
-                result.back().symbol_range = r;
-                result.back().symbol_selection_range = r;
+                result.push_back(item);
             }
         }
     }
-    std::set<document_symbol_item_s> s(result.begin(), result.end());
-    result.assign(s.begin(), s.end());
     return result;
 }
 
-std::map<symbol_occurence,std::vector<context::id_index>> lsp_context::copy_occurences(const std::string& document_uri) const
+document_symbol_list_s lsp_context::document_symbol_copy(const std::vector<symbol_occurence> occurence_list, const std::string& document_uri, const range& r) const
+{
+    document_symbol_list_s result = document_symbol_copy(occurence_list, document_uri);
+    for (auto& item : result)
+    {
+        item.symbol_range = r;
+        item.symbol_selection_range = r;
+    }
+    return result;
+}
+
+std::vector<std::pair<symbol_occurence,std::vector<context::id_index>>> lsp_context::copy_occurences(const std::string& document_uri) const
 {
     const auto& file = files_.find(document_uri);
-    std::map<symbol_occurence,std::vector<context::id_index>> copy_occurences;
+    std::vector<std::pair<symbol_occurence,std::vector<context::id_index>>> copy_occurences;
     for (const auto& f : files_)
     {
         if (f.second->type == file_type::COPY)
@@ -267,12 +251,13 @@ std::map<symbol_occurence,std::vector<context::id_index>> lsp_context::copy_occu
                     {
                         if (occ.kind == occurence_kind::VAR || occ.kind == occurence_kind::SEQ)
                         {
-                            occurences.push_back(occ.name);
+                            if (std::find(occurences.begin(),occurences.end(),occ.name) == occurences.end())
+                            {
+                                occurences.push_back(occ.name);
+                            }
                         }
                     }
-                    std::set<context::id_index> s(occurences.begin(), occurences.end());
-                    occurences.assign(s.begin(), s.end());
-                    copy_occurences.insert({occ,occurences});
+                    copy_occurences.emplace_back(std::pair{occ,occurences});
                 }
             }
         }
@@ -281,7 +266,7 @@ std::map<symbol_occurence,std::vector<context::id_index>> lsp_context::copy_occu
 }
 
 void lsp_context::modify_with_copy(document_symbol_list_s& modified, const context::id_index& sym_name,
-                                    const std::map<symbol_occurence,std::vector<context::id_index>>& copy_occs,
+                                    const std::vector<std::pair<symbol_occurence,std::vector<context::id_index>>>& copy_occs,
                                     const document_symbol_kind kind) const
 {
     // do we have COPY files in OPENCODE?
@@ -470,16 +455,17 @@ document_symbol_list_s lsp_context::document_symbol(const std::string& document_
     // checks if the file is MACRO or COPY
     const auto& file = files_.find(document_uri);
     // if the file could not be found, return empty list
-    if (file != files_.end())
+    if (file == files_.end())
     {
-        if (file->second->type == file_type::MACRO)
-        {
-            return document_symbol_macro(document_uri);
-        }
-        if (file->second->type == file_type::COPY)
-        {
-            return document_symbol_copy(file->second->get_occurences(), document_uri,{{0,0},{0,0}});
-        }
+        return result;
+    }
+    if (file->second->type == file_type::MACRO)
+    {
+        return document_symbol_macro(document_uri);
+    }
+    if (file->second->type == file_type::COPY)
+    {
+        return document_symbol_copy(file->second->get_occurences(), document_uri);
     }
 
     // if the file is OPENCODE, then first gather all SECTs in code and put them in map empty document_symbols_list_s
@@ -499,7 +485,6 @@ document_symbol_list_s lsp_context::document_symbol(const std::string& document_
 
     for (const auto& [id,sym] : symbol_list)
     {
-        // if the symbol is neither RELOC nor SECT
         if (sym.value().value_kind() == context::symbol_value_kind::RELOC)
         {
             if (sym.attributes().origin != context::symbol_origin::SECT)
@@ -508,10 +493,21 @@ document_symbol_list_s lsp_context::document_symbol(const std::string& document_
                 const auto& sect = sym.value().get_reloc().bases()[0].first.owner;
                 if (children_of_sects.find(sect) == children_of_sects.end())
                 {
-                    result.emplace_back(document_symbol_item_s{
-                        id,
-                        document_symbol_item_kind_mapping_symbol.at(sym.attributes().origin),
-                        {sym.symbol_location.pos,sym.symbol_location.pos}});
+                    if (sym.proc_stack().size() == 1)
+                    {
+                        result.emplace_back(document_symbol_item_s{
+                            id,
+                            document_symbol_item_kind_mapping_symbol.at(sym.attributes().origin),
+                            {sym.symbol_location.pos,sym.symbol_location.pos}});
+                        continue;
+                    }
+                    document_symbol_symbol(result,
+                                            document_symbol_list_s{}, 
+                                            id, 
+                                            sym, 
+                                            document_symbol_item_kind_mapping_symbol.at(sym.attributes().origin),
+                                            1,
+                                            true);
                     continue;
                 }
 

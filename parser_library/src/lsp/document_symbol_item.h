@@ -13,8 +13,6 @@ namespace hlasm_plugin::parser_library::lsp {
 
 using document_symbol_list_s = std::vector<document_symbol_item_s>;
 
-bool operator<(const document_symbol_item_s& lhs, const document_symbol_item_s& rhs);
-
 // representation of document symbol item based on LSP
 struct document_symbol_item_s
 {
@@ -41,7 +39,9 @@ public:
 
     std::vector<range> scope;
 };
-    
+
+bool operator==(const document_symbol_item_s& lhs, const document_symbol_item_s& rhs);
+
 } // namespace hlasm_plugin::parser_library::lsp
 
 #endif
