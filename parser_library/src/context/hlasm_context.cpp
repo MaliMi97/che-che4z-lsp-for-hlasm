@@ -343,7 +343,8 @@ processing_stack_t hlasm_context::processing_stack() const
 
     for (size_t i = 0; i < source_stack_.size(); ++i)
     {
-        res.emplace_back(source_stack_[i].current_instruction, scope_stack_.front(), file_processing_type::OPENCODE, ids_.empty_id);
+        res.emplace_back(
+            source_stack_[i].current_instruction, scope_stack_.front(), file_processing_type::OPENCODE, ids_.empty_id);
         for (const auto& member : source_stack_[i].copy_stack)
         {
             location loc(member.cached_definition[member.current_statement].get_base()->statement_position(),
@@ -359,8 +360,10 @@ processing_stack_t hlasm_context::processing_stack() const
 
                 const auto& nest = scope_stack_[j].this_macro->copy_nests[offs];
                 for (size_t k = 0; k < nest.size(); ++k)
-                    res.emplace_back(
-                        nest[k].loc, scope_stack_[j], k == 0 ? file_processing_type::MACRO : file_processing_type::COPY, nest[k].member_name);
+                    res.emplace_back(nest[k].loc,
+                        scope_stack_[j],
+                        k == 0 ? file_processing_type::MACRO : file_processing_type::COPY,
+                        nest[k].member_name);
             }
         }
     }

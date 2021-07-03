@@ -24,10 +24,10 @@
 #include <cstdint>
 #include <cstring>
 
+#include "context/id_storage.h"
 #include "parser_library_export.h"
 #include "range.h"
 #include "sequence.h"
-#include "context/id_storage.h"
 
 #pragma warning(push)
 #pragma warning(disable : 4661)
@@ -77,7 +77,7 @@ struct variable_store;
 namespace lsp {
 struct completion_item_s;
 struct document_symbol_item_s;
-}
+} // namespace lsp
 
 struct location;
 struct range_uri_s;

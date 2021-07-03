@@ -186,8 +186,8 @@ public:
     document_symbol_list document_symbol(const std::string& document_uri)
     {
         if (cancel_ && *cancel_)
-            return document_symbol_list {nullptr, 0};
-        
+            return document_symbol_list { nullptr, 0 };
+
         document_symbol_result = ws_path_match(document_uri).document_symbol(document_uri);
 
         return document_symbol_list(document_symbol_result.data(), document_symbol_result.size());

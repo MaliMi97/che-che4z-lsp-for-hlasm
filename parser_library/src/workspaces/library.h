@@ -15,8 +15,8 @@
 #ifndef HLASMPLUGIN_PARSERLIBRARY_LIBRARY_H
 #define HLASMPLUGIN_PARSERLIBRARY_LIBRARY_H
 
-#include <regex>
 #include <memory>
+#include <regex>
 #include <string>
 
 #include "diagnosable.h"

@@ -6,8 +6,8 @@
 #include <string>
 #include <vector>
 
-#include "protocol.h"
 #include "../context/id_storage.h"
+#include "protocol.h"
 
 namespace hlasm_plugin::parser_library::lsp {
 
@@ -22,9 +22,8 @@ public:
         document_symbol_kind kind,
         range symbol_range,
         range symbol_selection_range);
-    document_symbol_item_s(hlasm_plugin::parser_library::context::id_index name,
-        document_symbol_kind kind,
-        range symbol_range);
+    document_symbol_item_s(
+        hlasm_plugin::parser_library::context::id_index name, document_symbol_kind kind, range symbol_range);
     document_symbol_item_s(hlasm_plugin::parser_library::context::id_index name,
         document_symbol_kind kind,
         range symbol_range,
