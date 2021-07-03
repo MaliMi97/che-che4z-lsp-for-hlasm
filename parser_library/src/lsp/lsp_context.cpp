@@ -23,7 +23,6 @@
 
 #include "context/instruction.h"
 #include "ebcdic_encoding.h"
-//#include "document_symbol_item.h"
 
 namespace hlasm_plugin::parser_library::lsp {
 namespace {
@@ -97,17 +96,13 @@ const std::unordered_map<occurence_kind,document_symbol_kind> document_symbol_it
     { occurence_kind::SEQ, document_symbol_kind::SEQ }
 };
 
-// finds id of MACRO and COPY files
 context::id_index lsp_context::find_macro_copy_id(const context::processing_stack_t& stack, int i) const
 {
-    // I really think this function should contain assert (i !=0), since first frame is always opencode
-    // and it does not make sense to return macro id in that case
     assert(i != 0);
     return stack[i].member_name == opencode_->hlasm_ctx.ids().empty_id ? &stack[i].proc_location.file
                                                                        : stack[i].member_name;
 }
 
-// this function is used if the type of file is MACRO
 document_symbol_list_s lsp_context::document_symbol_macro(const std::string& document_uri) const
 {
     auto copy_occs = copy_occurences(document_uri);
@@ -118,8 +113,6 @@ document_symbol_list_s lsp_context::document_symbol_macro(const std::string& doc
         {
             for (const auto& var : info->var_definitions)
             {
-                // will get rid of symbols from copy file
-                // ...hopefully it will not get rid of anything else, but as we are dealing with occurences, you never know
                 if (find_occurence_with_scope(document_uri, var.def_position).first == nullptr)
                 {
                     modify_with_copy(result, var.name, copy_occs, document_symbol_kind::VAR);
@@ -134,8 +127,6 @@ document_symbol_list_s lsp_context::document_symbol_macro(const std::string& doc
             }
             for (const auto& [name,seq] : def->labels)
             {
-                // will get rid of symbols from copy file
-                // ...hopefully it will not get rid of anything else, but as we are dealing with occurences, you never know
                 if (find_occurence_with_scope(document_uri, seq->symbol_location.pos).first == nullptr)
                 {
                     modify_with_copy(result, name, copy_occs, document_symbol_kind::SEQ);
@@ -154,7 +145,6 @@ document_symbol_list_s lsp_context::document_symbol_macro(const std::string& doc
     return result;
 }
 
-// this function is used in document_symbol_symbol function to add variable symbols of macros to outline and give them correct position
 document_symbol_list_s lsp_context::document_symbol_macro(const std::string& document_uri, const range& r) const
 {
     auto copy_occs = copy_occurences(document_uri);
@@ -165,8 +155,6 @@ document_symbol_list_s lsp_context::document_symbol_macro(const std::string& doc
         {
             for (const auto& var : info->var_definitions)
             {
-                // will get rid of symbols from copy file
-                // ...hopefully it will not get rid of anything else, but as we are dealing with occurences, you never know
                 if (find_occurence_with_scope(document_uri, var.def_position).first == nullptr)
                 {
                     continue;
@@ -180,8 +168,6 @@ document_symbol_list_s lsp_context::document_symbol_macro(const std::string& doc
             }
             for (const auto& [name,seq] : def->labels)
             {
-                // will get rid of symbols from copy file
-                // ...hopefully it will not get rid of anything else, but as we are dealing with occurences, you never know
                 if (find_occurence_with_scope(document_uri, seq->symbol_location.pos).first == nullptr)
                 {
                     continue;
@@ -199,10 +185,6 @@ document_symbol_list_s lsp_context::document_symbol_macro(const std::string& doc
     return result;
 }
 
-// if the file we are viewing is COPY, this function is used
-// If I am not wrong, then the variable and seuqnce symbols of COPY file are included in variable and sequence symbols of the file that
-// uses the copy instruction
-// So I did it this way for now, though as you have already said, there are some faults in it.
 document_symbol_list_s lsp_context::document_symbol_copy(const std::vector<symbol_occurence> occurence_list, const std::string& document_uri) const
 {
     document_symbol_list_s result;
@@ -269,12 +251,10 @@ void lsp_context::modify_with_copy(document_symbol_list_s& modified, const conte
                                     const std::vector<std::pair<symbol_occurence,std::vector<context::id_index>>>& copy_occs,
                                     const document_symbol_kind kind) const
 {
-    // do we have COPY files in OPENCODE?
     if (copy_occs.size() > 0)
     {
         for (const auto& [copy_occ,occs] : copy_occs)
         {
-            // does the COPY file contain an occurence with the same name as the variable?
             if (std::find(occs.begin(),occs.end(),sym_name) != occs.end())
             {
                 bool have_already = false;
@@ -282,13 +262,10 @@ void lsp_context::modify_with_copy(document_symbol_list_s& modified, const conte
                     sym_name,
                     kind,
                     copy_occ.occurence_range};
-                // do we already have a necessary node?
                 for (auto& item : modified)
                 {
-                    // if we do
                     if (item.name == copy_occ.name)
                     {
-                        // does the node already have such an item?
                         if (std::find(item.children.begin(),item.children.end(),sym_item) == item.children.end())
                         {
                             item.children.push_back(sym_item);
@@ -297,7 +274,6 @@ void lsp_context::modify_with_copy(document_symbol_list_s& modified, const conte
                         }
                     }
                 }
-                // if we do not have a necessary node
                 if (!have_already)
                 {
                     modified.emplace_back(document_symbol_item_s{
@@ -306,14 +282,11 @@ void lsp_context::modify_with_copy(document_symbol_list_s& modified, const conte
                         copy_occ.occurence_range,
                         document_symbol_list_s{sym_item}});
                 }
-
             }
-
         }
     }
 }
 
-// is used for checking whether symbol belonging to a sect is defined in the same file as the sect
 bool compare_stacks(const context::processing_stack_t& lhs, const context::processing_stack_t& rhs, unsigned long& i)
 {
     if (lhs.size() == 1)
@@ -340,17 +313,6 @@ bool compare_stacks(const context::processing_stack_t& lhs, const context::proce
     return false;
 }
 
-// this function does most of the heavy lifting, in the document_symbol function we are basically only calling this function and
-// taking care of special cases
-// The parametres of this function:
-// modified - the function is modifying this variable
-// children - the children of ord symbol, is {} if the symbol is not a sect
-// id - pointer to name of the symbol
-// sym - the symbol
-// kind - document_symbol_kind of the symbol, need to have it as a parameter, because the document_symbol_symbol function is being used for
-//          both absolute, resp. relocate symbols and sects
-// i - at what place in processing_stack we are starting the process. i >= 1.
-// macro - whether we want to add variable and sequence symbols to macros or not
 void lsp_context::document_symbol_symbol(document_symbol_list_s& modified, 
                                             const document_symbol_list_s& children, 
                                             const context::id_index& id, 
@@ -359,19 +321,15 @@ void lsp_context::document_symbol_symbol(document_symbol_list_s& modified,
                                             unsigned long i,
                                             const bool macro) const
 {
-    // makes the first macro in symbols processing_stack into document_symbol_item
     document_symbol_item_s aux = {
         find_macro_copy_id(sym.proc_stack(), i),
         document_symbol_kind::MACRO,
         {sym.proc_stack()[0].proc_location.pos,sym.proc_stack()[0].proc_location.pos},
         document_symbol_list_s{}
     };
-    // checks whether modified is empty
     auto i_find = modified.begin();
     if (modified.empty())
     {
-        // because it is the first time we see this node, we might want to add variable and sequence symbols
-        // for now we will only add it to the first level of encapsulation
         if (macro)
         {
             const auto& file = files_.find(sym.proc_stack()[i].proc_location.file);
@@ -389,12 +347,9 @@ void lsp_context::document_symbol_symbol(document_symbol_list_s& modified,
     }
     else
     {
-        // checks whether we do not have it as a node already
-        // if yes, then we get position, if not then if condition is called
         i_find = std::find(modified.begin(),modified.end(),aux);
         if (i_find == modified.end())
         {
-            // because it is the first time we see this node, we might want to add variable and sequence symbols
             if (macro)
             {
                 const auto& file = files_.find(sym.proc_stack()[i].proc_location.file);
@@ -407,27 +362,20 @@ void lsp_context::document_symbol_symbol(document_symbol_list_s& modified,
                     aux.children = document_symbol_copy(file->second->get_occurences(), file->first, aux.symbol_range);
                 }
             }
-            // add the new node to modified and correct i_find
             modified.push_back(aux);
             i_find = modified.end()-1;
         }
     }
-    // increase i in order to look for the next node
     i++;
-    // now we do basically the same thing till the end of prock_stack
     while (i < sym.proc_stack().size())
     {
-        // adjust the name of document_symbol_item to that of the next node
         aux.name = find_macro_copy_id(sym.proc_stack(), i);
-        // make a pointer to the children of the last node
         document_symbol_list_s* aux_list = &i_find->children;
-        // if it does not have any children, add the first one
         if (aux_list->empty())
         {
             aux_list->push_back(aux);
             i_find = aux_list->begin();
         }
-        // if it does have children, then try to find the node and create it, if it is missing
         else
         {
             i_find = std::find(aux_list->begin(),aux_list->end(),aux);
@@ -439,7 +387,6 @@ void lsp_context::document_symbol_symbol(document_symbol_list_s& modified,
         }
         i++;
     }
-    // now aux_list points to the end of the hierarchy and we can add symbol
     document_symbol_list_s* aux_list = &i_find->children;
     aux_list->emplace_back(document_symbol_item_s{
         id,
@@ -448,13 +395,10 @@ void lsp_context::document_symbol_symbol(document_symbol_list_s& modified,
         children}); 
 }
 
-// the actual function which is being used for response to the DocumentSymbol request
 document_symbol_list_s lsp_context::document_symbol(const std::string& document_uri) const
 {
     document_symbol_list_s result;
-    // checks if the file is MACRO or COPY
     const auto& file = files_.find(document_uri);
-    // if the file could not be found, return empty list
     if (file == files_.end())
     {
         return result;
@@ -468,8 +412,6 @@ document_symbol_list_s lsp_context::document_symbol(const std::string& document_
         return document_symbol_copy(file->second->get_occurences(), document_uri);
     }
 
-    // if the file is OPENCODE, then first gather all SECTs in code and put them in map empty document_symbols_list_s
-    // later we will fill the document_symbols_list_s with SECTs' children
     const auto& symbol_list = opencode_->hlasm_ctx.ord_ctx.symbols();
     std::map<const context::section*, document_symbol_list_s> children_of_sects;
     for (const auto& [id,sym] : symbol_list)
@@ -533,8 +475,7 @@ document_symbol_list_s lsp_context::document_symbol(const std::string& document_
                                         false);
             }
         }
-        // if sym is ABS, then we add it to the result if the starting position is 0
-        // and if it is not 0, then it is equal to 1
+        
         if (sym.value().value_kind() == context::symbol_value_kind::ABS)
         {
             if (sym.proc_stack().size() == 1)
@@ -554,8 +495,7 @@ document_symbol_list_s lsp_context::document_symbol(const std::string& document_
                                     true);
         }
     }
-    // in similar fashion as ABS, we do SECTs
-    // just that we add their children
+    
     for (const auto& [sect,children] : children_of_sects)
     {
         const auto& sym = *opencode_->hlasm_ctx.ord_ctx.get_symbol(sect->name);
@@ -576,11 +516,9 @@ document_symbol_list_s lsp_context::document_symbol(const std::string& document_
                                 false);
     }
 
-    // lastly we add variable symbols to the macro
     auto copy_occs = copy_occurences(document_uri);
     for (const auto sym : opencode_->variable_definitions)
     {
-        // is variable from COPY file?
         if (find_occurence_with_scope(document_uri, sym.def_position).first == nullptr)
         {
             modify_with_copy(result, sym.name, copy_occs, document_symbol_kind::VAR);
