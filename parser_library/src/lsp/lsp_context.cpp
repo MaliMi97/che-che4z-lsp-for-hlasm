@@ -417,7 +417,6 @@ document_symbol_list_s lsp_context::document_symbol(const std::string& document_
         {
             if (sym.attributes().origin != context::symbol_origin::SECT)
             {
-                // get owner of the SECT and if it does not have one, add it to result
                 const auto& sect = sym.value().get_reloc().bases()[0].first.owner;
                 if (children_of_sects.find(sect) == children_of_sects.end())
                 {
@@ -440,8 +439,6 @@ document_symbol_list_s lsp_context::document_symbol(const std::string& document_
 
                 const auto& sect_sym = opencode_->hlasm_ctx.ord_ctx.get_symbol(sect->name);
                 auto& children = children_of_sects.find(sect)->second;
-                // compare symbol's stack with SECT's stack and add it to children if it is true
-                // the function modifies i
                 unsigned long i = 1;
                 if (compare_stacks(sym.proc_stack(), sect_sym->proc_stack(), i))
                 {
